@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v1.1</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v1.3</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -103,6 +103,7 @@ a{color:var(--accent2);text-decoration:none}
 .role-badge.viewer{background:#e2e8f0;color:#475569}
 .icon-btn{background:var(--card);border:1px solid var(--border);border-radius:9px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:.15s}
 .icon-btn:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+.icon-btn.cog:hover{background:var(--accent2);border-color:var(--accent2);color:#fff}
 
 .layout{display:flex;min-height:calc(100vh - 58px)}
 .sidebar{width:230px;flex-shrink:0;background:#fff;border-right:1px solid var(--border);padding:14px 12px;transition:width .22s ease;overflow:hidden}
@@ -226,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v1.1</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v1.3</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -249,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v1.1</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v1.3</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -260,6 +261,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <span id="userName">—</span>
       <span class="role-badge viewer" id="roleBadge">Viewer</span>
     </div>
+    <button class="icon-btn cog" id="settingsBtn" onclick="openSettings()" title="Branding / Settings" style="display:none">⚙</button>
     <button class="icon-btn" onclick="logout()" title="Sign out">⎋</button>
   </div>
 
@@ -270,6 +272,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="nav-item" data-view="deliveries" onclick="go('deliveries')"><span class="nav-ico">🚚</span><span class="lbl">Deliveries</span></div>
       <div class="nav-item" data-view="spares" onclick="go('spares')"><span class="nav-ico">📦</span><span class="lbl">Spares &amp; Stock</span></div>
       <div class="nav-item" data-view="shipping" onclick="go('shipping')"><span class="nav-ico">💰</span><span class="lbl">Shipping &amp; Costs</span></div>
+      <div class="nav-item" data-view="logs" onclick="go('logs')"><span class="nav-ico">📷</span><span class="lbl">Logs &amp; Images</span></div>
       <div class="nav-section">Support</div>
       <div class="nav-item" data-view="tickets" onclick="go('tickets')"><span class="nav-ico">🎫</span><span class="lbl">Tickets</span><span class="nav-badge" id="ticketBadge" style="display:none">0</span></div>
       <div class="nav-item" data-view="reviews" onclick="go('reviews')"><span class="nav-ico">⭐</span><span class="lbl">Customer Reviews</span></div>
@@ -284,8 +287,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.1
-   Build: v1.1 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.3
+   Build: v1.3 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -356,7 +359,7 @@ let reviewSheetId = REVIEWS_CONFIG.sheetId || (function(){ try{ return localStor
 let activeView = 'dashboard';
 const LS_KEY = 'oxefit_delivery_v1';
 
-let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], meta:{updated:null,by:null} };
+let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], logs:[], meta:{updated:null,by:null,logo:null} };
 
 /* ─────────── SEED DATA (sample rows from your Excel template) ─────────── */
 function seedData(){
@@ -402,7 +405,8 @@ function seedData(){
   state.reviews = [
     {id:uid(),date:'2025-02-20',client:'Dubai Police Officers Club',rating:5,source:'Google',comment:'Excellent installation and onboarding.',deliveryId:'OXE-00001'}
   ];
-  state.meta = {updated:new Date().toISOString(), by:'seed'};
+  state.logs = [];
+  state.meta = {updated:new Date().toISOString(), by:'seed', logo:null};
 }
 
 /* ─────────── UTILITIES ─────────── */
@@ -416,6 +420,48 @@ function nextTicketCode(){ let max=0; state.tickets.forEach(t=>{const m=/CC(\d+)
 function qtyInStock(s){ return (Number(s.received)||0)-(Number(s.moved)||0); }
 function toast(msg,type){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+(type||''); clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',2600); }
 
+/* image → resized data URL (keeps the synced JSON small) */
+function fileToResized(file,maxDim,type,quality,cb){
+  const rd=new FileReader();
+  rd.onload=e=>{ const img=new Image(); img.onload=()=>{ let w=img.width,h=img.height; const sc=Math.min(1,maxDim/Math.max(w,h)); w=Math.round(w*sc); h=Math.round(h*sc);
+    const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d');
+    if(type==='image/jpeg'){ ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); }
+    ctx.drawImage(img,0,0,w,h); cb(c.toDataURL(type,quality)); };
+    img.onerror=()=>toast('Could not read image','err'); img.src=e.target.result; };
+  rd.readAsDataURL(file);
+}
+function pickImage(maxDim,type,quality,cb){ const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  inp.onchange=e=>{ const f=e.target.files[0]; if(f) fileToResized(f,maxDim,type,quality,cb); }; inp.click(); }
+
+/* branding — applies uploaded logo to topbar + login mark */
+function applyBranding(){
+  const logo=state.meta&&state.meta.logo;
+  document.querySelectorAll('.brand-logo,.login-logo').forEach(el=>{
+    if(logo){ el.style.backgroundImage='url('+logo+')'; el.style.backgroundSize='cover'; el.style.backgroundPosition='center'; el.style.color='transparent'; el.dataset.logo='1'; }
+    else { el.style.backgroundImage=''; el.style.color=''; el.textContent=el.classList.contains('login-logo')?'OX':'OX'; }
+  });
+}
+function openSettings(){
+  if(CURRENT_ROLE!=='admin'){ toast('Admin only','err'); return; }
+  const logo=state.meta&&state.meta.logo;
+  modal('Branding & Settings',`
+    <div class="fld"><label>Company logo</label>
+      <div style="display:flex;align-items:center;gap:16px;margin-top:6px">
+        <div style="width:72px;height:72px;border-radius:14px;border:1px solid var(--border);background:#f8fafc ${logo?`url(${logo}) center/cover`:''};display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent2)">${logo?'':'OX'}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary" onclick="uploadLogo()">⬆ Upload logo</button>
+          ${logo?`<button class="btn danger" onclick="removeLogo()">Remove</button>`:''}
+        </div>
+      </div>
+      <div class="hint">PNG or JPG. Auto-resized to ~240px and shown in the top bar &amp; sign-in. Synced to the whole team.</div>
+    </div>
+    <div class="fld" style="margin-top:18px"><label>Shared database</label>
+      <div class="hint">One file for the whole team: <b>${esc(ONEDRIVE_CONFIG.filePath)}</b> in <b>${esc(ONEDRIVE_CONFIG.sharedDriveUser)}</b>'s OneDrive. Last updated ${state.meta&&state.meta.updated?fmtDate(state.meta.updated):'—'} by ${esc((state.meta&&state.meta.by)||'—')}.</div>
+    </div>`, null);
+}
+function uploadLogo(){ pickImage(240,'image/png',0.92, dataUrl=>{ state.meta=state.meta||{}; state.meta.logo=dataUrl; persist(); applyBranding(); openSettings(); toast('Logo updated','ok'); }); }
+function removeLogo(){ state.meta=state.meta||{}; state.meta.logo=null; persist(); applyBranding(); openSettings(); toast('Logo removed'); }
+
 /* ─────────── PERMISSIONS ─────────── */
 function canEdit(){ return CURRENT_ROLE==='admin'||CURRENT_ROLE==='ops'; }
 function canDelete(){ return CURRENT_ROLE==='admin'; }
@@ -424,7 +470,7 @@ function requireEdit(){ if(!canEdit()){ toast('Viewers cannot modify records','e
 
 /* ─────────── PERSISTENCE ─────────── */
 function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
-function loadLocal(){ try{ const r=localStorage.getItem(LS_KEY); if(r){ state=JSON.parse(r); return true; } }catch(e){} return false; }
+function loadLocal(){ try{ const r=localStorage.getItem(LS_KEY); if(r){ state=JSON.parse(r); ['deliveries','stock','accessories','costing','tickets','reviews','logs'].forEach(k=>{ if(!Array.isArray(state[k])) state[k]=[]; }); if(!state.meta) state.meta={}; return true; } }catch(e){} return false; }
 function touch(){ state.meta={updated:new Date().toISOString(), by:CURRENT_USER}; }
 async function persist(){ touch(); saveLocal(); renderActive(); if(ONLINE){ await saveToOneDrive(); } }
 
@@ -464,31 +510,99 @@ async function getToken(scopes){
   catch(e){ const r=await msalInstance.acquireTokenPopup(req); return r.accessToken; }
 }
 
-/* ─────────── ONEDRIVE (GRAPH) SYNC ─────────── */
-function driveContentUrl(){
-  const upn=encodeURIComponent(ONEDRIVE_CONFIG.sharedDriveUser);
-  return `https://graph.microsoft.com/v1.0/users/${upn}/drive/root:${ONEDRIVE_CONFIG.filePath}:/content`;
+/* ─────────── ONEDRIVE (GRAPH) SYNC ───────────
+   Inherits the sales-tracker mechanism: resolve the shared file via
+   /me/drive/sharedWithMe → read/write by stable /drives/{driveId}/items/{itemId}/content.
+   Path-addressing the shared drive root is kept only to SEED the file on first run
+   and for the owner whose file isn't "shared with me". All team members read/write
+   the SAME file in demo@core-velocity.com's OneDrive. No /me personal fallback —
+   an access failure surfaces a clear error instead of silently splitting data. */
+function driveRootUrl(){
+  const upn=ONEDRIVE_CONFIG.sharedDriveUser;
+  if(upn) return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(upn)}/drive/root:${ONEDRIVE_CONFIG.filePath}:/content`;
+  return `https://graph.microsoft.com/v1.0/me/drive/root:${ONEDRIVE_CONFIG.filePath}:/content`;
+}
+let _fileRef=null;
+const _fileName=(ONEDRIVE_CONFIG.filePath.split('/').pop()||'delivery-tracker.json').toLowerCase();
+function refContentUrl(ref){ return `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(ref.driveId)}/items/${encodeURIComponent(ref.itemId)}/content`; }
+async function resolveFileRef(tok,force){
+  if(_fileRef&&!force) return _fileRef;
+  try{
+    const res=await fetch('https://graph.microsoft.com/v1.0/me/drive/sharedWithMe',{headers:{Authorization:'Bearer '+tok}});
+    if(!res.ok) return null;
+    const body=await res.json(); const items=(body&&Array.isArray(body.value))?body.value:[];
+    for(const it of items){
+      const ri=it.remoteItem||it; const name=(it.name||ri.name||'').toLowerCase();
+      const driveId=ri.parentReference&&ri.parentReference.driveId; const itemId=ri.id;
+      if(!driveId||!itemId) continue;
+      if(name===_fileName){ _fileRef={driveId,itemId}; return _fileRef; }
+      if(ri.folder){
+        try{ const ch=await fetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}/children`,{headers:{Authorization:'Bearer '+tok}});
+          if(ch.ok){ const kids=await ch.json(); const hit=(kids.value||[]).find(k=>(k.name||'').toLowerCase()===_fileName); if(hit){ _fileRef={driveId,itemId:hit.id}; return _fileRef; } } }catch(_){}
+      }
+    }
+  }catch(_){}
+  return null;
+}
+let _sharedErrShown=false;
+function showSharedError(){ setSync('error','No shared-drive access'); if(_sharedErrShown) return; _sharedErrShown=true;
+  toast("Your account can't reach the shared team drive (demo@core-velocity.com). Saved on THIS device only — ask Ahmed to share the OXEFIT folder, then sign in again.",'err'); }
+
+/* merge: union by id (prevents one user's save wiping another's records); on
+   conflict keep the record with the newer _ts (defaults keep local). */
+function mergeArr(localArr,remoteArr){
+  const m=new Map(); (remoteArr||[]).forEach(r=>{ if(r&&r.id) m.set(r.id,r); });
+  (localArr||[]).forEach(l=>{ if(!l||!l.id) return; const r=m.get(l.id); if(!r) m.set(l.id,l); else m.set(l.id,(l._ts||0)>=(r._ts||0)?l:r); });
+  return [...m.values()];
+}
+function mergeState(remote){
+  if(!remote||typeof remote!=='object') return;
+  ['deliveries','stock','accessories','costing','tickets','reviews','logs'].forEach(k=>{ state[k]=mergeArr(state[k]||[], remote[k]||[]); });
+  const lu=Date.parse((state.meta&&state.meta.updated)||0)||0, ru=Date.parse((remote.meta&&remote.meta.updated)||0)||0;
+  if(ru>lu && remote.meta){ state.meta=remote.meta; }
+  else if(remote.meta&&remote.meta.logo&&!(state.meta&&state.meta.logo)){ state.meta=state.meta||{}; state.meta.logo=remote.meta.logo; }
+}
+async function fetchRemote(tok){
+  const ref=await resolveFileRef(tok);
+  if(ref){
+    let res=await fetch(refContentUrl(ref),{headers:{Authorization:'Bearer '+tok}});
+    if(res.status===404){ const fresh=await resolveFileRef(tok,true); if(fresh) res=await fetch(refContentUrl(fresh),{headers:{Authorization:'Bearer '+tok}}); }
+    if(res.status===404) return {status:404,ref};
+    if(res.status===403){ const e=new Error('403'); e.code=403; throw e; }
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return {status:200,ref,data:await res.json()};
+  }
+  const res=await fetch(driveRootUrl(),{headers:{Authorization:'Bearer '+tok}});
+  if(res.status===404) return {status:404};
+  if(res.status===403){ const e=new Error('403'); e.code=403; throw e; }
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  return {status:200,data:await res.json()};
 }
 async function downloadFromOneDrive(){
   if(!ONLINE) return;
-  setSync('syncing','Syncing…');
+  setSync('syncing','Loading…');
   try{
-    const token=await getToken();
-    const res=await fetch(driveContentUrl(),{ headers:{ Authorization:'Bearer '+token } });
-    if(res.status===404){ await saveToOneDrive(); setSync('connected','Synced'); return; }
-    if(!res.ok) throw new Error('Graph '+res.status);
-    const data=await res.json();
-    if(data && data.deliveries){ state=data; saveLocal(); renderActive(); updateTicketBadge(); }
+    const tok=await getToken();
+    const r=await fetchRemote(tok);
+    if(r.status===404){ await saveToOneDrive(); setSync('connected','Synced'); return; }
+    if(r.data && r.data.deliveries){ mergeState(r.data); saveLocal(); applyBranding(); renderActive(); updateTicketBadge(); }
     setSync('connected','Synced');
-  }catch(e){ console.warn('download',e); setSync('error','Sync error'); }
+  }catch(e){ console.warn('download',e); if(e&&e.code===403){ showSharedError(); return; } setSync('error','Sync error'); }
 }
 async function saveToOneDrive(){
   if(!ONLINE) return;
   setSync('syncing','Saving…');
   try{
-    const token=await getToken();
-    const res=await fetch(driveContentUrl(),{ method:'PUT', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' }, body:JSON.stringify(state) });
-    if(!res.ok) throw new Error('Graph '+res.status);
+    const tok=await getToken();
+    // merge remote into local first so we never overwrite teammates' records
+    try{ const r=await fetchRemote(tok); if(r.status===200&&r.data&&r.data.deliveries){ mergeState(r.data); saveLocal(); } }
+    catch(me){ if(me&&me.code===403){ showSharedError(); return; } }
+    const ref=_fileRef||await resolveFileRef(tok);
+    const putUrl=ref?refContentUrl(ref):driveRootUrl();
+    let res=await fetch(putUrl,{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(state)});
+    if(res.status===403){ showSharedError(); return; }
+    if(res.status===404&&ref){ _fileRef=null; res=await fetch(driveRootUrl(),{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(state)}); if(res.status===403){ showSharedError(); return; } }
+    if(!res.ok) throw new Error('HTTP '+res.status);
     setSync('connected','Synced');
   }catch(e){ console.warn('save',e); setSync('error','Sync error'); }
 }
@@ -505,6 +619,7 @@ function boot(){
     b.style.display='block'; b.textContent='⚠ Azure client ID not set — sign-in unavailable. Set ONEDRIVE_CONFIG.clientId.';
     document.getElementById('msLoginBtn').disabled=true;
   }
+  applyBranding();
 }
 function enterApp(){
   document.getElementById('loginScreen').style.display='none';
@@ -514,6 +629,8 @@ function enterApp(){
   const rb=document.getElementById('roleBadge');
   rb.className='role-badge '+CURRENT_ROLE;
   rb.textContent=CURRENT_ROLE==='admin'?'Admin':CURRENT_ROLE==='ops'?'Operational':'Viewer';
+  document.getElementById('settingsBtn').style.display = CURRENT_ROLE==='admin'?'flex':'none';
+  applyBranding();
   go('dashboard');
 }
 function logout(){
@@ -531,7 +648,7 @@ function go(view){
   renderActive();
 }
 function renderActive(){
-  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,shipping:renderShipping,tickets:renderTickets,reviews:renderReviews}[activeView];
+  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,shipping:renderShipping,logs:renderLogs,tickets:renderTickets,reviews:renderReviews}[activeView];
   if(r) document.getElementById('mainContent').innerHTML='', r();
   updateTicketBadge();
 }
@@ -586,6 +703,12 @@ function renderDashboard(){
   // Equipment in-stock pulled live from Spares & Stock
   const eqStock=['XS1-FLOW','XS1-PEAK','XP1'].map(p=>{ const s=state.stock.find(x=>(x.product||'').toUpperCase().replace(/\s+/g,'')===p.replace(/\s+/g,'')); return {label:p, qty:s?qtyInStock(s):0, min:s?s.min:0, found:!!s}; });
 
+  // (3) family classification & (5) rep vs onboarding
+  const xs1Qty=d.filter(x=>(x.model||'').toUpperCase().startsWith('XS1')).length;
+  const xp1Qty=d.filter(x=>(x.model||'').toUpperCase().startsWith('XP1')).length;
+  const byRep=groupCount(d,'salesPerson').sort((a,b)=>b.value-a.value).map((r,i)=>({...r,color:PALETTE[i%PALETTE.length]}));
+  const byCoach=groupCount(d.filter(x=>x.salesCoach&&x.salesCoach!=='N/A'),'salesCoach').sort((a,b)=>b.value-a.value).map(r=>({...r,color:'#8b5cf6'}));
+
   document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
   <div class="view active">
     <div class="page-head">
@@ -609,6 +732,12 @@ function renderDashboard(){
           <div style="font-size:28px;font-weight:800;letter-spacing:-1px;color:${low?'#b91c1c':'#0f766e'}">${e.found?e.qty:'—'}<span style="font-size:13px;font-weight:600;color:var(--text-faint)"> units</span></div>
           <div class="k-sub">${e.found?(low?`⚠ at/below min (${e.min})`:`min ${e.min} · healthy`):'not in inventory'}</div></div>`; }).join('')}
       </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="panel"><h3>🧮 Units: XS1 vs XP1</h3><div class="p-sub">Delivered product-family split</div>${donut([{label:'XS1 family',value:xs1Qty,color:'#2563eb'},{label:'XP1',value:xp1Qty,color:'#f59e0b'}].filter(s=>s.value))}</div>
+      <div class="panel"><h3>🧑‍💼 Sales by Rep</h3><div class="p-sub">Deliveries credited to each sales person</div>${barChart(byRep)}</div>
+      <div class="panel"><h3>🎓 Onboarding by Team</h3><div class="p-sub">Deliveries handled by each onboarding coach</div>${barChart(byCoach)}</div>
     </div>
 
     <div class="grid-2">
@@ -703,7 +832,7 @@ function openDelivery(id){
       ${CURRENT_ROLE==='admin'?`<div class="fld"><label>Lock record (admin)</label><select name="locked"><option value="">No</option><option value="1" ${r.locked?'selected':''}>Locked</option></select></div>`:''}
     </div>
     <div class="fld hint" style="margin-top:10px">Warranty end auto-calculates from start + period.</div>`,
-    ()=>{ const f=getForm(); f.warrantyMonths=Number(f.warrantyMonths)||''; f.locked=!!f.locked;
+    ()=>{ const f=getForm(); f.warrantyMonths=Number(f.warrantyMonths)||''; f.locked=!!f.locked; f._ts=Date.now();
       if(id){ Object.assign(r,f); } else { state.deliveries.push(f); }
       persist(); closeModal(); toast('Delivery saved','ok'); });
 }
@@ -805,18 +934,71 @@ function renderShipping(){
   </div>`);
 }
 function openCost(id){ if(!requireEdit())return; const x=id?state.costing.find(r=>r.id===id):{id:uid(),type:'XS1',date:new Date().toISOString().slice(0,10)};
-  const linked=state.deliveries.map(d=>d.id);
+  const opts=state.deliveries.map(d=>`<option value="${esc(d.id)}" ${x.noteId===d.id?'selected':''}>${esc(d.id)} — ${esc(d.receiver||'')}</option>`).join('');
   modal(id?'Edit cost entry':'New cost entry',`<div class="form-grid">
-    <div class="fld"><label>Delivery Note ID</label><input name="noteId" list="dlist" value="${esc(x.noteId||'')}"><datalist id="dlist">${linked.map(i=>`<option>${i}</option>`).join('')}</datalist></div>
+    <div class="fld"><label>Order / Delivery Note ID</label><select name="noteId" onchange="costFill(this)"><option value="">— select order —</option>${opts}${x.noteId&&!state.deliveries.some(d=>d.id===x.noteId)?`<option value="${esc(x.noteId)}" selected>${esc(x.noteId)} (custom)</option>`:''}</select><div class="hint">The same order ID can appear in multiple cost rows (e.g. delivery + offloading + accessory).</div></div>
     <div class="fld"><label>Receiver</label><input name="receiver" value="${esc(x.receiver||'')}"></div>
     <div class="fld"><label>Type</label><select name="type">${COST_TYPES.map(t=>`<option ${x.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
     <div class="fld"><label>Address / Region</label><input name="address" value="${esc(x.address||'')}"></div>
     <div class="fld"><label>Delivery date</label><input type="date" name="date" value="${esc(x.date||'')}"></div>
     <div class="fld"><label>Sales person</label><select name="salesPerson">${['',...SALES_PEOPLE].map(s=>`<option ${x.salesPerson===s?'selected':''}>${s}</option>`).join('')}</select></div>
     <div class="fld"><label>Costing (AED)</label><input type="number" name="cost" value="${x.cost||0}"></div></div>`,
-    ()=>{const f=getForm();f.cost=Number(f.cost)||0; if(id)Object.assign(x,f);else state.costing.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+    ()=>{const f=getForm();f.cost=Number(f.cost)||0;f._ts=Date.now(); if(id)Object.assign(x,f);else state.costing.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+}
+function costFill(selEl){ const d=state.deliveries.find(x=>x.id===selEl.value); if(!d) return; const form=selEl.closest('#modalCard');
+  const set=(n,v)=>{ const el=form.querySelector(`[name="${n}"]`); if(el&&!el.value) el.value=v; };
+  // always refresh receiver/address; only set type if blank
+  form.querySelector('[name="receiver"]').value=d.receiver||'';
+  form.querySelector('[name="address"]').value=d.region||d.address||'';
+  if(d.salesPerson){ const sp=form.querySelector('[name="salesPerson"]'); if(sp) sp.value=d.salesPerson; }
+  const ty=form.querySelector('[name="type"]'); if(ty){ const guess=(d.model||'').toUpperCase().startsWith('XP1')?'XP1':'XS1'; ty.value=guess; }
+  if(d.deliveryDate){ const dt=form.querySelector('[name="date"]'); if(dt&&!dt.value) dt.value=d.deliveryDate; }
 }
 function delCost(id){ if(!canDelete())return; state.costing=state.costing.filter(x=>x.id!==id); persist(); }
+
+/* ============================================================
+   VIEW: LOGS & IMAGES  (delivery photos linked to order IDs)
+============================================================ */
+let _logImg=null;
+function renderLogs(){
+  const logs=(state.logs||[]).slice();
+  const groups={}; logs.forEach(l=>{ (groups[l.orderId||'—']=groups[l.orderId||'—']||[]).push(l); });
+  const orderKeys=Object.keys(groups).sort();
+  document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
+  <div class="view active">
+    <div class="page-head">
+      <div><div class="page-title">Logs &amp; Images</div><div class="page-sub">${logs.length} photo${logs.length===1?'':'s'} across ${orderKeys.length} order${orderKeys.length===1?'':'s'} · proof of successful delivery</div></div>
+      <div class="toolbar">${canEdit()?`<button class="btn primary" onclick="openLog()">📷 Upload photo</button>`:''}</div>
+    </div>
+    ${logs.length? orderKeys.map(k=>{ const items=groups[k]; const rec=state.deliveries.find(d=>d.id===k); return `
+      <div class="panel" style="margin-bottom:14px">
+        <h3>🚚 ${esc(k)} ${rec?`<span class="tag">${esc(rec.receiver)}</span>`:''} <span class="muted" style="font-weight:600;margin-left:auto;font-size:12px">${items.length} photo${items.length===1?'':'s'}</span></h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:6px">
+          ${items.map(l=>`<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff">
+            <img src="${l.img}" onclick="viewLogImg('${l.id}')" style="width:100%;height:140px;object-fit:cover;cursor:zoom-in;display:block">
+            <div style="padding:9px 11px"><div style="font-size:12.5px;font-weight:600">${esc(l.caption||'(no caption)')}</div>
+            <div class="muted" style="font-size:11px;margin-top:3px">${esc(l.by||'')} · ${fmtDate(l.date)}</div>
+            ${canDelete()?`<button class="mini-btn del" style="margin-top:7px" onclick="delLog('${l.id}')">Delete</button>`:''}</div>
+          </div>`).join('')}
+        </div>
+      </div>`; }).join('') : '<div class="panel"><div class="empty">No delivery photos yet.'+(canEdit()?' Click “Upload photo” to add the first one.':'')+'</div></div>'}
+  </div>`);
+}
+function openLog(){ if(!requireEdit())return; _logImg=null;
+  const opts=state.deliveries.map(d=>`<option value="${esc(d.id)}">${esc(d.id)} — ${esc(d.receiver||'')}</option>`).join('');
+  modal('Upload delivery photo',`<div class="form-grid">
+    <div class="fld full"><label>Order / Delivery Note ID</label><select name="orderId"><option value="">— select order —</option>${opts}</select><div class="hint">Each order can hold multiple photos.</div></div>
+    <div class="fld full"><label>Caption / note</label><input name="caption" placeholder="e.g. Installed &amp; handover complete"></div>
+    <div class="fld full"><label>Photo</label><div style="display:flex;gap:12px;align-items:center"><button class="btn" type="button" onclick="chooseLogImg()">📷 Choose image</button><span id="logImgState" class="muted">No image selected</span></div><div id="logPreview" style="margin-top:10px"></div></div>
+  </div>`,
+  ()=>{ const f=getForm(); if(!f.orderId){ toast('Select an order','err'); return; } if(!_logImg){ toast('Choose an image first','err'); return; }
+    const d=state.deliveries.find(x=>x.id===f.orderId);
+    state.logs.unshift({id:uid(),orderId:f.orderId,receiver:d?d.receiver:'',caption:f.caption||'',img:_logImg,by:CURRENT_USER,date:new Date().toISOString().slice(0,10),_ts:Date.now()});
+    persist(); closeModal(); toast('Photo uploaded','ok'); });
+}
+function chooseLogImg(){ pickImage(1000,'image/jpeg',0.72, du=>{ _logImg=du; const s=document.getElementById('logImgState'); if(s){ s.textContent='✅ Image ready'; s.style.color='var(--success)'; } const p=document.getElementById('logPreview'); if(p) p.innerHTML=`<img src="${du}" style="max-width:100%;max-height:220px;border-radius:10px;border:1px solid var(--border)">`; }); }
+function viewLogImg(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; modal(esc(l.orderId)+' — '+esc(l.caption||'photo'),`<img src="${l.img}" style="width:100%;border-radius:10px"><div class="muted" style="margin-top:8px;font-size:12px">Uploaded by ${esc(l.by||'')} on ${fmtDate(l.date)}</div>`,null,true); }
+function delLog(id){ if(!canDelete())return; if(!confirm('Delete this photo?'))return; state.logs=state.logs.filter(x=>x.id!==id); persist(); toast('Deleted'); }
 
 /* ============================================================
    VIEW: TICKETS
@@ -854,7 +1036,7 @@ function openTicket(id){ if(!requireEdit())return; const x=id?state.tickets.find
     <div class="fld"><label>Reported by (CoreV)</label>${sel('reportedBy',COREV_TEAM,x.reportedBy)}</div>
     <div class="fld"><label>Assisted by (OxeFit)</label>${sel('assistedBy',OXEFIT_TEAM,x.assistedBy)}</div>
     <div class="fld full"><label>Remarks</label><textarea name="remarks" rows="2">${esc(x.remarks||'')}</textarea></div></div>`,
-    ()=>{const f=getForm(); if(id)Object.assign(x,f);else state.tickets.push({id:uid(),...f}); persist(); closeModal(); toast('Ticket saved','ok');});
+    ()=>{const f=getForm();f._ts=Date.now(); if(id)Object.assign(x,f);else state.tickets.push({id:uid(),...f}); persist(); closeModal(); toast('Ticket saved','ok');});
 }
 function delTicket(id){ if(!canDelete())return; if(!confirm('Delete ticket?'))return; state.tickets=state.tickets.filter(x=>x.id!==id); persist(); }
 function replyOutlook(id){ const x=state.tickets.find(r=>r.id===id); const d=state.deliveries.find(dd=>dd.receiver&&x.client&&dd.receiver.toLowerCase().includes(x.client.toLowerCase().split(' ')[0])); const to=d?d.email:''; const subj=encodeURIComponent('['+x.code+'] '+x.client+' — support update'); const body=encodeURIComponent('Hello,\n\nRegarding: '+x.issue+'\n\nLatest update: '+(x.update||'')+'\n\nBest regards,\n'+(CURRENT_USER||'CoreV Team')); window.open('https://outlook.office.com/mail/deeplink/compose?to='+encodeURIComponent(to)+'&subject='+subj+'&body='+body,'_blank'); }
