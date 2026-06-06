@@ -1,842 +1,993 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OxeFit UAE Operations Platform v2.0</title>
-    <!-- CDNs -->
-    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OXEFIT by CoreV — Delivery Operations Tracker v1.0</title>
 
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #04091a; color: #e2eeff; }
-        .serif { font-family: 'Playfair Display', serif; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #060e22; }
-        ::-webkit-scrollbar-thumb { background: #1a3360; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #2a4f90; }
-        
-        .glass { background: rgba(12, 24, 48, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(26, 51, 96, 0.5); }
-        .sidebar-item-active { background: rgba(14, 165, 233, 0.12); color: #0ea5e9; border-left: 3px solid #0ea5e9; }
-        
-        @keyframes pulse-soft {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        .animate-pulse-soft { animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-    </style>
+<!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<script>
+  if (typeof msal === 'undefined') {
+    document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/msal-browser/2.38.3/msal-browser.min.js"><\/script>');
+  }
+</script>
+<!-- Google Identity Services for Customer Reviews integration -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root{
+  --navy:#f0f2f5; --navy-mid:#f8f9fb; --navy-light:#ffffff;
+  --accent:#3b82f6; --accent2:#2563eb; --accent-glow:#60a5fa;
+  --teal:#0d9488; --teal2:#0f766e; --teal-glow:#2dd4bf;
+  --gold:#f59e0b; --gold-light:#fbbf24;
+  --success:#10b981; --danger:#ef4444; --warn:#f59e0b; --info:#6366f1;
+  --text:#1a202c; --text-muted:#64748b; --text-faint:#94a3b8;
+  --border:#e2e8f0; --border-soft:#eef2f7;
+  --card:#ffffff; --card-hover:#f1f5f9; --input-bg:#ffffff;
+  --row-even:#f9fafb; --row-hover:#eff6ff;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.05);
+  --shadow:0 4px 6px -1px rgba(0,0,0,.08), 0 2px 4px -2px rgba(0,0,0,.05);
+  --shadow-lg:0 20px 25px -5px rgba(0,0,0,.1), 0 8px 10px -6px rgba(0,0,0,.05);
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+  background:linear-gradient(160deg,#eef2f7 0%,#e6ecf3 100%);
+  color:var(--text); font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
+}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:13px}
+a{color:var(--accent2);text-decoration:none}
+
+/* ───────── LOGIN ───────── */
+#loginScreen{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(900px 500px at 70% -10%, #dbeafe55, transparent),
+             radial-gradient(700px 500px at -10% 110%, #ccfbf155, transparent),
+             linear-gradient(160deg,#0f172a,#1e293b);}
+.login-card{position:relative;z-index:2;background:#fff;border-radius:22px;padding:42px 46px;width:100%;max-width:430px;box-shadow:var(--shadow-lg)}
+.login-brand{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:6px}
+.login-logo{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--teal),var(--accent2));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px;box-shadow:0 6px 14px rgba(13,148,136,.35)}
+.login-title{font-size:21px;font-weight:800;letter-spacing:-.4px}
+.login-sub{color:var(--text-muted);text-align:center;font-size:13px;margin:8px 0 26px}
+.login-sub b{color:var(--teal2)}
+.ms-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;border:1.5px solid var(--border);
+  border-radius:11px;padding:13px;font-size:14px;font-weight:600;color:#1a202c;transition:.18s}
+.ms-btn:hover{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.ms-logo{width:18px;height:18px;display:grid;grid-template-columns:1fr 1fr;gap:2px}
+.ms-logo i{display:block}
+.divider{display:flex;align-items:center;gap:12px;color:var(--text-faint);font-size:11px;margin:20px 0;text-transform:uppercase;letter-spacing:1px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.login-field{margin-bottom:14px}
+.login-field label{display:block;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;font-weight:600}
+.login-field input,.login-field select{width:100%;background:var(--input-bg);border:1.5px solid var(--border);border-radius:10px;padding:11px 13px;color:var(--text)}
+.login-field input:focus,.login-field select:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.login-btn{width:100%;background:linear-gradient(135deg,var(--teal),var(--accent2));color:#fff;border:none;border-radius:11px;padding:13px;font-weight:700;font-size:14px;margin-top:6px;transition:.18s}
+.login-btn:hover{filter:brightness(1.07);box-shadow:0 8px 18px rgba(37,99,235,.3)}
+.login-hint{text-align:center;font-size:11px;color:var(--text-faint);margin-top:18px;line-height:1.7}
+.offline-banner{background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:10px;padding:9px 12px;font-size:12px;margin-bottom:18px;text-align:center}
+
+/* ───────── SHELL ───────── */
+#app{display:none;min-height:100vh}
+.topbar{position:sticky;top:0;z-index:40;background:#ffffffe6;backdrop-filter:blur(8px);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:14px;padding:0 18px;height:58px}
+.burger{background:none;border:none;color:var(--text-muted);font-size:20px;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;transition:.15s}
+.burger:hover{background:var(--card-hover);color:var(--text)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.3px}
+.brand-logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--teal),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px}
+.brand small{display:block;font-size:10px;font-weight:600;color:var(--text-faint);letter-spacing:.5px}
+.topbar-spacer{flex:1}
+.sync-chip{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);border-radius:999px;padding:6px 13px;font-size:12px;color:var(--text-muted);transition:.15s}
+.sync-chip:hover{border-color:var(--accent2);color:var(--text)}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--text-faint)}
+.sync-dot.connected{background:var(--success);box-shadow:0 0 6px var(--success)}
+.sync-dot.syncing{background:var(--gold);animation:pulse 1s infinite}
+.sync-dot.error{background:var(--danger)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.user-chip{display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--border);border-radius:999px;padding:5px 6px 5px 13px;font-size:13px;font-weight:600}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--teal));color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.role-badge{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:3px 8px;border-radius:6px}
+.role-badge.admin{background:#1e293b;color:#7dd3fc}
+.role-badge.ops{background:#ccfbf1;color:#0f766e}
+.role-badge.viewer{background:#e2e8f0;color:#475569}
+.icon-btn{background:var(--card);border:1px solid var(--border);border-radius:9px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:.15s}
+.icon-btn:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+
+.layout{display:flex;min-height:calc(100vh - 58px)}
+.sidebar{width:230px;flex-shrink:0;background:#fff;border-right:1px solid var(--border);padding:14px 12px;transition:width .22s ease;overflow:hidden}
+.sidebar.mini{width:64px}
+.nav-section{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-faint);font-weight:700;padding:14px 12px 6px;white-space:nowrap}
+.sidebar.mini .nav-section{opacity:0;height:0;padding:0}
+.nav-item{display:flex;align-items:center;gap:13px;padding:11px 12px;border-radius:11px;color:var(--text-muted);font-weight:600;font-size:13.5px;cursor:pointer;transition:.15s;white-space:nowrap;margin-bottom:2px;position:relative}
+.nav-item:hover{background:var(--card-hover);color:var(--text)}
+.nav-item.active{background:linear-gradient(135deg,#eff6ff,#ecfeff);color:var(--accent2)}
+.nav-item.active::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;background:linear-gradient(var(--teal),var(--accent2))}
+.nav-ico{width:22px;text-align:center;font-size:17px;flex-shrink:0}
+.nav-badge{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 7px}
+.sidebar.mini .nav-item span.lbl,.sidebar.mini .nav-badge{display:none}
+
+.main{flex:1;padding:22px 26px;overflow-x:hidden;max-width:100%}
+.view{display:none;animation:fade .25s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.page-title{font-size:23px;font-weight:800;letter-spacing:-.5px}
+.page-sub{color:var(--text-muted);font-size:13px;margin-top:3px}
+.toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;padding:9px 14px;font-weight:600;font-size:13px;transition:.15s}
+.btn:hover{background:var(--card-hover);border-color:var(--accent2)}
+.btn.primary{background:linear-gradient(135deg,var(--teal),var(--accent2));color:#fff;border:none}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{color:var(--danger);border-color:#fecaca}
+.btn.danger:hover{background:var(--danger);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.search{position:relative}
+.search input{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 13px 9px 34px;width:240px}
+.search input:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.search::before{content:'🔍';position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.6}
+
+/* KPI cards */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+.kpi::after{content:'';position:absolute;right:-20px;top:-20px;width:80px;height:80px;border-radius:50%;opacity:.08;background:var(--accent)}
+.kpi .k-label{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted);font-weight:600}
+.kpi .k-val{font-size:30px;font-weight:800;letter-spacing:-1px;margin-top:6px}
+.kpi .k-sub{font-size:12px;color:var(--text-faint);margin-top:4px}
+.kpi.teal::after{background:var(--teal)} .kpi.gold::after{background:var(--gold)}
+.kpi.green::after{background:var(--success)} .kpi.red::after{background:var(--danger)}
+
+.grid-2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-bottom:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+@media(max-width:1000px){.grid-2,.grid-3{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow-sm)}
+.panel h3{font-size:14px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.panel .p-sub{font-size:12px;color:var(--text-faint);margin-bottom:14px}
+
+/* Tables */
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:auto;box-shadow:var(--shadow-sm);max-height:70vh}
+table{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap}
+thead th{position:sticky;top:0;background:#f1f5f9;color:var(--text-muted);font-weight:700;font-size:11px;letter-spacing:.4px;text-transform:uppercase;
+  text-align:left;padding:11px 12px;border-bottom:2px solid var(--border);z-index:2}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border-soft);vertical-align:middle}
+tbody tr:nth-child(even){background:var(--row-even)}
+tbody tr:hover{background:var(--row-hover)}
+td.actions{position:sticky;right:0;background:inherit}
+.mini-btn{border:1px solid var(--border);background:#fff;border-radius:7px;padding:4px 8px;font-size:11px;font-weight:600;color:var(--text-muted)}
+.mini-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.mini-btn.del:hover{border-color:var(--danger);color:var(--danger)}
+.empty{padding:48px;text-align:center;color:var(--text-faint)}
+
+/* status pills */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.green{background:#dcfce7;color:#15803d}.pill.blue{background:#dbeafe;color:#1d4ed8}
+.pill.amber{background:#fef3c7;color:#b45309}.pill.red{background:#fee2e2;color:#b91c1c}
+.pill.grey{background:#e2e8f0;color:#475569}.pill.purple{background:#ede9fe;color:#6d28d9}
+.tag{font-size:11px;font-weight:600;background:#f1f5f9;border:1px solid var(--border);border-radius:6px;padding:2px 7px;color:var(--text-muted)}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:18px;width:100%;max-width:760px;box-shadow:var(--shadow-lg);animation:pop .2s ease}
+@keyframes pop{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border)}
+.modal-head h2{font-size:17px;font-weight:800}
+.modal-body{padding:20px 22px;max-height:65vh;overflow:auto}
+.modal-foot{padding:15px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid .full{grid-column:1/-1}
+.fld label{display:block;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:5px}
+.fld input,.fld select,.fld textarea{width:100%;background:var(--input-bg);border:1.5px solid var(--border);border-radius:9px;padding:9px 11px;color:var(--text)}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.fld .hint{font-size:11px;color:var(--text-faint);margin-top:4px}
+.x-btn{background:none;border:none;font-size:22px;color:var(--text-faint);width:34px;height:34px;border-radius:8px}
+.x-btn:hover{background:var(--card-hover);color:var(--text)}
+
+/* bars */
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12.5px}
+.bar-row .bl{width:120px;flex-shrink:0;color:var(--text-muted);font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.bar-track{flex:1;height:22px;background:#f1f5f9;border-radius:7px;overflow:hidden}
+.bar-fill{height:100%;border-radius:7px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-size:11px;font-weight:700;min-width:24px;transition:width .5s ease}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;margin-top:12px}
+.legend span{display:flex;align-items:center;gap:6px;color:var(--text-muted)}
+.dot{width:10px;height:10px;border-radius:3px}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:11px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);opacity:0;transition:.25s;z-index:500;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.ok{background:#065f46}.toast.err{background:#991b1b}
+
+.reorder-alert{display:flex;align-items:center;gap:8px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:9px 12px;font-size:12.5px;color:#b91c1c;font-weight:600;margin-bottom:8px}
+.filter-pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.filter-pill{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 13px;font-size:12px;font-weight:600;color:var(--text-muted)}
+.filter-pill.active{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+.note-cell{max-width:240px;white-space:normal;font-size:12px;color:var(--text-muted)}
+.muted{color:var(--text-faint)}
+.setup-box{font-family:ui-monospace,monospace;font-size:12px;background:#0f172a;color:#cbd5e1;border-radius:10px;padding:16px;white-space:pre-wrap;line-height:1.6}
+</style>
 </head>
 <body>
-    <div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-logo">OX</div>
+      <div><div class="login-title">OxeFit · CoreV</div></div>
+    </div>
+    <div class="login-sub">Delivery Operations Tracker <b>v1.0</b></div>
 
-        /* ─── MSAL Configuration ─── */
-        const msalConfig = {
-            auth: {
-                clientId: "cd1b7f5f-5ff9-4066-ab4f-06f270a94fcb",
-                authority: "https://login.microsoftonline.com/core-velocity.com",
-                redirectUri: window.location.origin + window.location.pathname,
-                navigateToLoginRequestUrl: true
-            },
-            cache: {
-                cacheLocation: "sessionStorage",
-                storeAuthStateInCookie: false,
-            }
-        };
+    <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
-        const msalInstance = new msal.PublicClientApplication(msalConfig);
+    <button class="ms-btn" id="msLoginBtn" onclick="loginWithMicrosoft()">
+      <span class="ms-logo"><i style="background:#f25022"></i><i style="background:#7fba00"></i><i style="background:#00a4ef"></i><i style="background:#ffb900"></i></span>
+      Sign in with Microsoft
+    </button>
 
-        /* ─── RBAC Configuration ─── */
-        const ADMIN_EMAILS = ["ahmed@core-velocity.com"];
-        const OPS_EMAILS = [
-            "charlie@core-velocity.com", 
-            "prem@core-velocity.com", 
-            "gladys@core-velocity.com", 
-            "sami@core-velocity.com", 
-            "kamal@core-velocity.com"
-        ];
+    <div class="divider">or use offline demo</div>
 
-        /* ─── Colors ─── */
-        const T = {
-            bg0: '#04091a', bg1: '#08112b', bg2: '#0d1c3d', bg3: '#122350',
-            border: '#1a3360', borderHover: '#2a4f90',
-            primary: '#0ea5e9', primaryDark: '#0284c7', gold: '#f59e0b',
-            success: '#10b981', warn: '#f59e0b', danger: '#ef4444', purple: '#8b5cf6',
-            textPrimary: '#e2eeff', textSec: '#7da0cc', textMuted: '#3d6091'
-        };
+    <div class="login-field">
+      <label>Team member</label>
+      <select id="demoUser"></select>
+    </div>
+    <button class="login-btn" onclick="loginDemo()">Enter (offline demo)</button>
 
-        /* ─── Seed Data ─── */
-        const SEED = {
-            deliveries: [
-                { 
-                    id: 'DN-2401', 
-                    orderDate: '2024-05-10', 
-                    customer: 'Fitness First UAE', 
-                    status: 'Delivered', 
-                    units: 4, 
-                    special: 'Installation required', 
-                    estDelivery: '2024-05-20', 
-                    actDelivery: '2024-05-19',
-                    receiverName: 'John Smith',
-                    contactNumber: '+971 50 123 4567',
-                    email: 'john@fitnessfirst.ae',
-                    address: 'JBR, Dubai',
-                    deliveryTime: '10:00 AM',
-                    model: 'XS1',
-                    salesPerson: 'Ahmed',
-                    salesCoach: 'Charlie',
-                    warrantyStart: '2024-05-19',
-                    warrantyPeriod: 12,
-                    warrantyEnd: '2025-05-19',
-                    notes: 'Customer very happy with the demo.',
-                    customerSuccessCall: 'Done',
-                    salesCoachDelivered: 'Yes',
-                    offeredFlooring: 'YES',
-                    serialNo: 'OX-XS1-001',
-                    sharedReviewForm: 'Yes',
-                    freeSession: 'Scheduled'
-                }
-            ],
-            spares: [
-                { id: 'SP-001', partName: 'Resistance Band Set', partNo: 'OXF-RB-01', category: 'Accessories', stock: 24, minStock: 10, location: 'Dubai WH', updated: '2024-06-01' },
-                { id: 'SP-002', partName: 'Force Sensor Module', partNo: 'OXF-FS-02', category: 'Electronics', stock: 6, minStock: 8, location: 'Dubai WH', updated: '2024-05-18' }
-            ],
-            shipping: [
-                { id: 'SH-001', date: '2024-05-12', carrier: 'Aramex UAE', origin: 'Chicago, US', dest: 'Dubai, UAE', weight: '340 kg', cost: 4200, status: 'Cleared', notes: 'Main shipment Q2' }
-            ],
-            tickets: [
-                { id: 'TK-001', subject: 'Display flickering - Fitness First JBR', source: 'Outlook', priority: 'High', status: 'Open', assignee: 'Prem', created: '2024-06-04', due: '2024-06-06' }
-            ]
-        };
+    <div class="login-hint">
+      Microsoft sign-in syncs to <b>OneDrive</b> across the team.<br>
+      Offline demo stores data on this device only.
+      <a href="#" onclick="showSetup();return false;">Setup help →</a>
+    </div>
+  </div>
+</div>
 
-        /* ─── Components ─── */
+<!-- ══════════════ APP ══════════════ -->
+<div id="app">
+  <div class="topbar">
+    <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
+    <div class="brand">
+      <div class="brand-logo">OX</div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v1.0</small></div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
+      <span class="sync-dot" id="syncDot"></span><span id="syncText">Offline</span>
+    </div>
+    <div class="user-chip">
+      <span class="avatar" id="userAvatar">?</span>
+      <span id="userName">—</span>
+      <span class="role-badge viewer" id="roleBadge">Viewer</span>
+    </div>
+    <button class="icon-btn" onclick="logout()" title="Sign out">⎋</button>
+  </div>
 
-        const Icon = ({ name, size = 18, color = 'currentColor', className = "" }) => {
-            const paths = {
-                dashboard: "M3 3h7v7H3V3zm11 0h7v7h-7V3zm-11 11h7v7H3v-7zm11 0h7v7h-7v-7z",
-                delivery: "M1 3h15v13H1V3zm15 5h4l3 3v5h-7V8z",
-                spare: "M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z",
-                shipping: "M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3M9 11h14v10H9V11zM12 17v-6l3 2 3-2v6",
-                ticket: "M2 9a3 3 0 010-6h20a3 3 0 010 6M2 15a3 3 0 000 6h20a3 3 0 000-6M4 12h16",
-                logout: "M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9",
-                plus: "M12 5v14M5 12h14",
-                edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
-                trash: "M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6",
-                sync: "M21.5 2v6h-6M2.5 22v-6h6M22 11.5A10 10 0 003.2 7.2M2 12.5a10 10 0 0018.8 4.2",
-                check: "M20 6L9 17l-5-5",
-                user: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"
-            };
-            return (
-                <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d={paths[name]} />
-                </svg>
-            );
-        };
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-section">Operations</div>
+      <div class="nav-item active" data-view="dashboard" onclick="go('dashboard')"><span class="nav-ico">📊</span><span class="lbl">Executive Dashboard</span></div>
+      <div class="nav-item" data-view="deliveries" onclick="go('deliveries')"><span class="nav-ico">🚚</span><span class="lbl">Deliveries</span></div>
+      <div class="nav-item" data-view="spares" onclick="go('spares')"><span class="nav-ico">📦</span><span class="lbl">Spares &amp; Stock</span></div>
+      <div class="nav-item" data-view="shipping" onclick="go('shipping')"><span class="nav-ico">💰</span><span class="lbl">Shipping &amp; Costs</span></div>
+      <div class="nav-section">Support</div>
+      <div class="nav-item" data-view="tickets" onclick="go('tickets')"><span class="nav-ico">🎫</span><span class="lbl">Tickets</span><span class="nav-badge" id="ticketBadge" style="display:none">0</span></div>
+      <div class="nav-item" data-view="reviews" onclick="go('reviews')"><span class="nav-ico">⭐</span><span class="lbl">Customer Reviews</span></div>
+    </nav>
 
-        const Badge = ({ label, status }) => {
-            const styles = {
-                'Delivered': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-                'In Transit': 'bg-sky-500/10 text-sky-400 border-sky-500/20',
-                'Pending': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-                'Processing': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-                'Cleared': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-                'Open': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-                'High': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-                'Medium': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-                'Low': 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-            };
-            return (
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border ${styles[status] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
-                    {label || status}
-                </span>
-            );
-        };
+    <main class="main" id="mainContent"></main>
+  </div>
+</div>
 
-        /* ─── App Root ─── */
-        function App() {
-            const [account, setAccount] = useState(null);
-            const [role, setRole] = useState(null);
-            const [loading, setLoading] = useState(true);
-            const [activeModule, setActiveModule] = useState('dashboard');
-            const [data, setData] = useState(SEED);
-            const [syncStatus, setSyncStatus] = useState('idle'); // idle, syncing, success, error
+<div class="modal-bg" id="modalBg"><div class="modal" id="modalCard"></div></div>
+<div class="toast" id="toast"></div>
 
-            useEffect(() => {
-                msalInstance.handleRedirectPromise().then(res => {
-                    const currentAccount = res?.account || msalInstance.getAllAccounts()[0];
-                    if (currentAccount) {
-                        setAccount(currentAccount);
-                        const email = currentAccount.username.toLowerCase();
-                        if (ADMIN_EMAILS.includes(email)) setRole('admin');
-                        else if (OPS_EMAILS.includes(email) || email.includes('ahmed')) setRole('admin'); // Fallback for Ahmed
-                        else setRole('operational');
-                        
-                        loadFromOneDrive(currentAccount);
-                    }
-                    setLoading(false);
-                }).catch(err => {
-                    console.error(err);
-                    setLoading(false);
-                });
-            }, []);
+<script>
+/* ============================================================
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.0
+   Build: v1.0 / 2026-06-06
+   ------------------------------------------------------------
+   Modules: Executive Dashboard · Deliveries · Spares & Stock ·
+            Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
+   Auth: Microsoft Entra ID (Azure) SSO  •  Sync: OneDrive (Graph)
+   Roles: Ahmed = Admin (full) | Charlie, Prem, Gladys, Sami, Kamal = Operational (add/modify)
+============================================================ */
 
-            const login = () => {
-                msalInstance.loginRedirect({ scopes: ["User.Read", "Files.ReadWrite.All", "Mail.Read"] });
-            };
+/* ─────────── AZURE / ONEDRIVE CONFIG (REQUIREMENT B) ───────────
+   Reuses the existing CoreV Azure app registration (tenant core-velocity.com).
+   IMPORTANT: add the hosted URL of THIS file as an SPA redirect URI in the
+   Azure app, and grant delegated Graph perms: Files.ReadWrite.All, User.Read,
+   Mail.Read (for Outlook ticket import). If clientId is blank → offline mode. */
+const ONEDRIVE_CONFIG = {
+  clientId   : 'cd1b7f5f-5ff9-4066-ab4f-06f270a94fcb',
+  authority  : 'https://login.microsoftonline.com/core-velocity.com',
+  redirectUri: window.location.origin + window.location.pathname,
+  filePath   : '/OXEFIT/delivery-tracker.json',     // separate DB from sales tracker
+  sharedDriveUser: 'demo@core-velocity.com',         // single shared drive for the whole team
+  scopes     : ['Files.ReadWrite.All', 'User.Read', 'Mail.Read']
+};
 
-            const logout = () => {
-                msalInstance.logoutRedirect();
-            };
+/* Google config for Customer Reviews module (optional). Reuses CoreV Google app. */
+const REVIEWS_CONFIG = {
+  clientId : '454204967724-kdpbnvh2ha3eeahf3br2eb511djg9ol1.apps.googleusercontent.com',
+  scope    : 'https://www.googleapis.com/auth/spreadsheets.readonly',
+  sheetId  : ''  // optional Google Sheet ID holding reviews; blank = manual entry only
+};
 
-            const saveToOneDrive = async (newData) => {
-                if (!account) return;
-                setSyncStatus('syncing');
-                try {
-                    const tokenRes = await msalInstance.acquireTokenSilent({
-                        scopes: ["Files.ReadWrite.All"],
-                        account: account
-                    });
-                    const blob = new Blob([JSON.stringify(newData)], { type: 'application/json' });
-                    await fetch("https://graph.microsoftonline.com/v1.0/me/drive/special/approot:/uae_ops_data_v2.json:/content", {
-                        method: "PUT",
-                        headers: { "Authorization": `Bearer ${tokenRes.accessToken}` },
-                        body: blob
-                    });
-                    setSyncStatus('success');
-                    setTimeout(() => setSyncStatus('idle'), 3000);
-                } catch (err) {
-                    console.error("OneDrive Sync Error", err);
-                    setSyncStatus('error');
-                }
-            };
+/* ─────────── ROLES (REQUIREMENT C) ─────────── */
+const ADMIN_USERS = ['Ahmed'];                                   // full control
+const OPS_USERS   = ['Charlie','Prem','Gladys','Sami','Kamal'];  // add / modify
+function roleOf(name){
+  if(ADMIN_USERS.includes(name)) return 'admin';
+  if(OPS_USERS.includes(name))   return 'ops';
+  return 'viewer';
+}
+/* M365 email → tracker name */
+const USER_EMAILS = {
+  'ahmed@core-velocity.com':'Ahmed',
+  'charlie@core-velocity.com':'Charlie',
+  'prem@core-velocity.com':'Prem',
+  'gladys@core-velocity.com':'Gladys',
+  'sami@core-velocity.com':'Sami',
+  'kamal@core-velocity.com':'Kamal'
+};
+const ALL_USERS = [...ADMIN_USERS, ...OPS_USERS];
 
-            const loadFromOneDrive = async (acc) => {
-                try {
-                    const tokenRes = await msalInstance.acquireTokenSilent({
-                        scopes: ["Files.ReadWrite.All"],
-                        account: acc
-                    });
-                    const res = await fetch("https://graph.microsoftonline.com/v1.0/me/drive/special/approot:/uae_ops_data_v2.json:/content", {
-                        headers: { "Authorization": `Bearer ${tokenRes.accessToken}` }
-                    });
-                    if (res.ok) {
-                        const cloudData = await res.json();
-                        setData(cloudData);
-                    }
-                } catch (err) {
-                    console.warn("No cloud data found, using local seed.");
-                }
-            };
+/* ─────────── DROPDOWN CODE LISTS (from CODES / Code 2 sheets) ─────────── */
+const MODELS   = ['XS1 FLOW','XS1 FLOW+','XS1 PEAK','XS1 PEAK+','XP1'];
+const STATUSES = ['OPEN','DELIVERED - PENDING SESSION','DELIVERED - INSTALLATION PENDING','POSTPONED','CLOSED'];
+const SALES_PEOPLE = ['AHMED','KAMAL','SAMI','MARIOS','FATIMA','JAWDAT','WAFIQ','CONNOR','HASAN','ONLINE','Requested to Oxefit'];
+const SALES_COACHES= ['MARIOS','FATIMA','CONNOR','JAWDAT','HASAN','N/A'];
+const SATISFACTION = ['SATISFIED','UNSATISFIED','PENDING'];
+const REVIEW_OPTS  = ['YES','NOT YET','NOT REQUIRE','DONE'];
+const YESNO        = ['YES','NO'];
+const WARRANTY_MONTHS = [12, 36];
+const REGIONS      = ['Dubai','Abu Dhabi','Sharjah','Other'];
+const STOCK_CATS   = ['Fitness Equipment','Accessories','Spare Parts'];
+const TICKET_STATUS= ['OPEN','UNDER PROGRESS','CLOSE'];
+const COREV_TEAM   = ['CHARLIE','PREM','GLADYS','AHMED','SAMI','KAMAL'];
+const OXEFIT_TEAM  = ['CULLY','PETER','QA / ENGINEERING','N/A'];
+const COST_TYPES   = ['XS1','XP1','Accessory','Spare','Offloading','Other'];
 
-            const updateData = (newData) => {
-                setData(newData);
-                saveToOneDrive(newData);
-            };
+/* ─────────── STATE ─────────── */
+let CURRENT_USER = null, CURRENT_ROLE = 'viewer';
+let msalInstance = null, msalAccount = null, ONLINE = false, googleToken = null;
+let activeView = 'dashboard';
+const LS_KEY = 'oxefit_delivery_v1';
 
-            if (loading) return (
-                <div className="min-h-screen flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-500"></div>
-                </div>
-            );
+let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], meta:{updated:null,by:null} };
 
-            if (!account) return (
-                <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
-                    <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#1e3a8a 1px, transparent 1px)', backgroundSize: '32px 32px' }}></div>
-                    <div className="max-w-md w-full glass p-10 rounded-3xl shadow-2xl relative z-10 border border-sky-500/20 text-center">
-                        <div className="w-20 h-20 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-sky-500/30 mb-8">
-                            <span className="text-3xl font-black text-white italic">OX</span>
-                        </div>
-                        <h1 className="serif text-3xl mb-2">OxeFit UAE</h1>
-                        <p className="text-slate-400 text-sm mb-10 tracking-widest uppercase">Operations Platform v2.0</p>
-                        
-                        <button onClick={login} className="w-full py-4 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold transition-all shadow-lg shadow-sky-500/20 flex items-center justify-center gap-3">
-                            <svg className="w-5 h-5" viewBox="0 0 23 23"><path fill="#f3f3f3" d="M0 0h11v11H0z"/><path fill="#f3f3f3" d="M12 0h11v11H12z"/><path fill="#f3f3f3" d="M0 12h11v11H0z"/><path fill="#f3f3f3" d="M12 12h11v11H12z"/></svg>
-                            Sign in with Azure AD
-                        </button>
-                        
-                        <div className="mt-10 pt-10 border-t border-slate-800 text-[10px] text-slate-500 leading-relaxed">
-                            Secured by Microsoft Identity · Restricted to core-velocity.com<br/>
-                            Client ID: cd1b7f5f-5ff9-4066-ab4f-06f270a94fcb
-                        </div>
-                    </div>
-                </div>
-            );
+/* ─────────── SEED DATA (sample rows from your Excel template) ─────────── */
+function seedData(){
+  state.deliveries = [
+    {id:'OXE-00001',receiver:'Dubai Police Officers Club',contact:'971509850500',email:'officerclub@dubaipolice.gov.ae',address:'Al Jaddaf, Dubai',region:'Dubai',deliveryDate:'2025-02-13',deliveryTime:'09:00am',closedDate:'2025-02-13',status:'CLOSED',model:'XS1 PEAK+',salesPerson:'AHMED',salesCoach:'FATIMA',warrantyStart:'2025-02-13',warrantyMonths:36,notes:'',successCall:'SATISFIED',coachDelivered:'YES',flooring:'NO',serialNo:'',reviewForm:'NOT REQUIRE',freeSession:'',locked:true},
+    {id:'OXE-00002',receiver:'Ali Al Rashidi',contact:'971 50 800 0557',email:'aralrashedi@gmail.com',address:'Villa 171 AlDhay Bloom, Khalifa park, Abu Dhabi',region:'Abu Dhabi',deliveryDate:'2025-04-05',deliveryTime:'09:00am',closedDate:'',status:'CLOSED',model:'XP1',salesPerson:'SAMI',salesCoach:'N/A',warrantyStart:'2025-04-13',warrantyMonths:36,notes:'[13-04-25] small bent on top of the machine frame.',successCall:'SATISFIED',coachDelivered:'YES',flooring:'NO',serialNo:'',reviewForm:'NOT REQUIRE',freeSession:'',locked:false},
+    {id:'OXE-00003',receiver:'Barry Lake',contact:'971 55 888 5110',email:'sos.barryl@gmail.com',address:'Arabian Ranches 2, Rosa Street 1, Villa 19, Dubai',region:'Dubai',deliveryDate:'2025-04-11',deliveryTime:'09:00am',closedDate:'',status:'CLOSED',model:'XS1 PEAK+',salesPerson:'AHMED',salesCoach:'N/A',warrantyStart:'2025-04-05',warrantyMonths:36,notes:'',successCall:'SATISFIED',coachDelivered:'NO',flooring:'NO',serialNo:'',reviewForm:'DONE',freeSession:'',locked:false}
+  ];
+  state.stock = [
+    {product:'XS1-FLOW',cat:'Fitness Equipment',sku:'MENA-XS1-FLOW',supplier:'OxeFit Inc.',received:20,moved:8,min:3},
+    {product:'XS1-PEAK',cat:'Fitness Equipment',sku:'MENA-XS1-PEAK',supplier:'OxeFit Inc.',received:40,moved:32,min:5},
+    {product:'XP1',cat:'Fitness Equipment',sku:'MENA-XP1',supplier:'OxeFit Inc.',received:12,moved:7,min:2},
+    {product:'Bench',cat:'Accessories',sku:'XS1',supplier:'OxeFit Inc.',received:138,moved:40,min:10},
+    {product:'Ottoman Chair',cat:'Accessories',sku:'XS1',supplier:'OxeFit Inc.',received:103,moved:32,min:10},
+    {product:'Pilates Handle Bar',cat:'Accessories',sku:'XS1',supplier:'OxeFit Inc.',received:103,moved:32,min:10},
+    {product:'High Performance Barbell',cat:'Accessories',sku:'XS1',supplier:'OxeFit Inc.',received:177,moved:40,min:10},
+    {product:'Accessory Tree',cat:'Accessories',sku:'XS1',supplier:'OxeFit Inc.',received:177,moved:40,min:10},
+    {product:'Large waist harness',cat:'Spare Parts',sku:'XS1',supplier:'OxeFit Inc.',received:16,moved:0,min:2},
+    {product:'Petite waist harness',cat:'Spare Parts',sku:'XS1',supplier:'OxeFit Inc.',received:15,moved:10,min:2},
+    {product:'XS1 MOTOR',cat:'Spare Parts',sku:'XS1',supplier:'OxeFit Inc.',received:4,moved:0,min:2},
+    {product:'PARACHUTE CABLE',cat:'Spare Parts',sku:'XS1',supplier:'OxeFit Inc.',received:6,moved:0,min:2},
+    {product:'CABLE SHACKLES',cat:'Spare Parts',sku:'XS1',supplier:'OxeFit Inc.',received:8,moved:0,min:2},
+    {product:'BENCH WHEELS',cat:'Spare Parts',sku:'XS1',supplier:'OxeFit Inc.',received:4,moved:0,min:2},
+    {product:'OXEDOT',cat:'Spare Parts',sku:'XS1',supplier:'OxeFit Inc.',received:5,moved:0,min:2},
+    {product:'OXEDOT BATTERY',cat:'Spare Parts',sku:'XS1',supplier:'OxeFit Inc.',received:5,moved:0,min:2},
+    {product:'LOADCELL',cat:'Spare Parts',sku:'XS1',supplier:'OxeFit Inc.',received:4,moved:0,min:2}
+  ].map(s=>({...s, id:uid()}));
+  state.accessories = [
+    {id:uid(),date:'2025-12-09',client:'Tadawi',region:'Dubai',item:'Petite belt',qty:1},
+    {id:uid(),date:'2025-12-26',client:'Sharjah Womens',region:'Sharjah',item:'Petite belt',qty:2},
+    {id:uid(),date:'2026-01-27',client:'Marwan Al Nasser',region:'Dubai',item:'Petite belt',qty:1}
+  ];
+  state.costing = [
+    {id:uid(),noteId:'OXE-00001',receiver:'Dubai Police Officers Club',type:'XS1',address:'DUBAI',date:'2025-02-13',salesPerson:'AHMED',cost:750},
+    {id:uid(),noteId:'OXE-00002',receiver:'Ali Al Rashidi',type:'XP1',address:'ABU DHABI',date:'2025-04-13',salesPerson:'SAMI',cost:1200},
+    {id:uid(),noteId:'OXE-00003',receiver:'Barry Lake',type:'XS1',address:'DUBAI',date:'2025-04-05',salesPerson:'AHMED',cost:750}
+  ];
+  state.tickets = [
+    {id:uid(),code:'CC01',serial:'',client:'Stephanie Penhans',date:'2025-06-20',issue:'Misalignment in the wheels of a delivered bench; wheels scratch/contact the deck unevenly.',update:'[30-06] Visited client, straightened the metal, alignment still off. Replace entire bench?',statusCoreV:'CLOSE',statusOxe:'CLOSE',reportedBy:'CHARLIE',assistedBy:'CULLY',remarks:'[11-07] Bench replaced with new one; Oxefit (Culley) confirmed.'},
+    {id:uid(),code:'CC02',serial:'',client:'Dhruv Sharda',date:'2025-07-25',issue:'XS1 intermittently switches weight unit from kg to lbs during use.',update:'[07-08] Machine again shows LBS instead of KG.',statusCoreV:'UNDER PROGRESS',statusOxe:'UNDER PROGRESS',reportedBy:'GLADYS',assistedBy:'PETER',remarks:'[09-09] Client did not get back about the issue again.'},
+    {id:uid(),code:'CC03',serial:'',client:'Ali Al Rashidi',date:'2025-07-26',issue:'App Burnout setting: clicking Decrease increases load — 2-way app/unit sync bug.',update:'[26-07] Turned over to QA and Engineering for review.',statusCoreV:'UNDER PROGRESS',statusOxe:'UNDER PROGRESS',reportedBy:'AHMED',assistedBy:'QA / ENGINEERING',remarks:''}
+  ];
+  state.reviews = [
+    {id:uid(),date:'2025-02-20',client:'Dubai Police Officers Club',rating:5,source:'Google',comment:'Excellent installation and onboarding.',deliveryId:'OXE-00001'}
+  ];
+  state.meta = {updated:new Date().toISOString(), by:'seed'};
+}
 
-            return (
-                <div className="flex min-h-screen overflow-hidden">
-                    {/* Sidebar */}
-                    <div className="w-64 bg-[#060e22] border-r border-[#1a3360] flex flex-col shrink-0">
-                        <div className="p-6 flex items-center gap-3 border-b border-[#1a3360]">
-                            <div className="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-white font-black text-sm italic">OX</div>
-                            <div>
-                                <div className="serif text-sm leading-none mb-1">OxeFit UAE</div>
-                                <div className="text-[9px] text-slate-500 uppercase tracking-tighter">Ops Center v2.0</div>
-                            </div>
-                        </div>
-                        
-                        <nav className="flex-1 p-4 space-y-1">
-                            {[
-                                { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-                                { id: 'delivery', label: 'Deliveries', icon: 'delivery' },
-                                { id: 'spares', label: 'Spare Parts', icon: 'spare' },
-                                { id: 'shipping', label: 'Shipping Logs', icon: 'shipping' },
-                                { id: 'tickets', label: 'Support Tickets', icon: 'ticket' },
-                            ].map(item => (
-                                <button key={item.id} onClick={() => setActiveModule(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeModule === item.id ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400 hover:bg-slate-800/50'}`}>
-                                    <Icon name={item.icon} size={18} color={activeModule === item.id ? "#0ea5e9" : "#475569"} />
-                                    <span className="text-sm font-semibold">{item.label}</span>
-                                </button>
-                            ))}
-                        </nav>
+/* ─────────── UTILITIES ─────────── */
+function uid(){return 'x'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3)}
+function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function fmtDate(d){ if(!d) return ''; const x=new Date(d); if(isNaN(x)) return d; return x.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function addMonths(dateStr,m){ if(!dateStr||!m) return ''; const d=new Date(dateStr); if(isNaN(d)) return ''; d.setMonth(d.getMonth()+Number(m)); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
+function money(n){ return 'AED '+(Number(n)||0).toLocaleString('en-AE',{maximumFractionDigits:0}); }
+function nextDeliveryId(){ let max=0; state.deliveries.forEach(d=>{const m=/OXE-(\d+)/.exec(d.id||''); if(m) max=Math.max(max,+m[1]);}); return 'OXE-'+String(max+1).padStart(5,'0'); }
+function nextTicketCode(){ let max=0; state.tickets.forEach(t=>{const m=/CC(\d+)/.exec(t.code||''); if(m) max=Math.max(max,+m[1]);}); return 'CC'+String(max+1).padStart(2,'0'); }
+function qtyInStock(s){ return (Number(s.received)||0)-(Number(s.moved)||0); }
+function toast(msg,type){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+(type||''); clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',2600); }
 
-                        <div className="p-4 border-t border-[#1a3360]">
-                            <div className="flex items-center gap-3 px-2 py-3">
-                                <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-[10px] font-bold text-white uppercase tracking-tighter shadow-lg shadow-indigo-500/20">
-                                    {account.name.split(' ').map(n => n[0]).join('')}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-bold truncate">{account.name}</div>
-                                    <div className="text-[10px] text-sky-400 uppercase font-black">{role}</div>
-                                </div>
-                                <button onClick={logout} className="text-slate-500 hover:text-rose-400 transition-colors">
-                                    <Icon name="logout" size={16} />
-                                </button>
-                            </div>
-                            
-                            <div className="mt-2 px-2 py-2 rounded-lg bg-[#0d1c3d] flex items-center justify-between">
-                                <span className="text-[9px] text-slate-500 uppercase font-bold">OneDrive Sync</span>
-                                {syncStatus === 'syncing' ? (
-                                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-                                ) : (
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+/* ─────────── PERMISSIONS ─────────── */
+function canEdit(){ return CURRENT_ROLE==='admin'||CURRENT_ROLE==='ops'; }
+function canDelete(){ return CURRENT_ROLE==='admin'; }
+function canEditRow(row){ if(CURRENT_ROLE==='admin') return true; if(CURRENT_ROLE!=='ops') return false; return !row.locked; }
+function requireEdit(){ if(!canEdit()){ toast('Viewers cannot modify records','err'); return false;} return true; }
 
-                    {/* Main Content */}
-                    <main className="flex-1 flex flex-col min-w-0">
-                        {/* Header */}
-                        <header className="h-16 border-b border-[#1a3360] bg-[#08112b] px-8 flex items-center justify-between shrink-0">
-                            <div className="flex items-center gap-4">
-                                <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">{activeModule}</h2>
-                                <span className="text-[#1a3360]">/</span>
-                                <span className="text-xs text-slate-500 uppercase font-bold italic">{new Date().toLocaleDateString('en-AE', { weekday: 'long', day: 'numeric', month: 'short' })}</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-6">
-                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/5 border border-emerald-500/10">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                                    <span className="text-[10px] text-emerald-500 font-black uppercase">Live Platform</span>
-                                </div>
-                            </div>
-                        </header>
+/* ─────────── PERSISTENCE ─────────── */
+function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
+function loadLocal(){ try{ const r=localStorage.getItem(LS_KEY); if(r){ state=JSON.parse(r); return true; } }catch(e){} return false; }
+function touch(){ state.meta={updated:new Date().toISOString(), by:CURRENT_USER}; }
+async function persist(){ touch(); saveLocal(); renderActive(); if(ONLINE){ await saveToOneDrive(); } }
 
-                        <div className="flex-1 overflow-y-auto p-8">
-                            {activeModule === 'dashboard' && <DashboardModule data={data} />}
-                            {activeModule === 'delivery' && <DeliveryModule data={data} updateData={updateData} role={role} />}
-                            {activeModule === 'spares' && <SpareModule data={data} updateData={updateData} role={role} />}
-                            {activeModule === 'shipping' && <ShippingModule data={data} updateData={updateData} role={role} />}
-                            {activeModule === 'tickets' && <TicketModule data={data} updateData={updateData} role={role} />}
-                        </div>
-                    </main>
-                </div>
-            );
-        }
+/* ─────────── MICROSOFT AUTH ─────────── */
+function initMsal(){
+  if(!ONEDRIVE_CONFIG.clientId){ return false; }
+  try{
+    msalInstance = new msal.PublicClientApplication({
+      auth:{ clientId:ONEDRIVE_CONFIG.clientId, authority:ONEDRIVE_CONFIG.authority, redirectUri:ONEDRIVE_CONFIG.redirectUri },
+      cache:{ cacheLocation:'localStorage' }
+    });
+    return true;
+  }catch(e){ console.warn('MSAL init failed',e); return false; }
+}
+async function loginWithMicrosoft(){
+  if(typeof msal==='undefined'||!initMsal()){ toast('Microsoft sign-in unavailable — use offline demo','err'); return; }
+  try{
+    const res = await msalInstance.loginPopup({ scopes:ONEDRIVE_CONFIG.scopes, prompt:'select_account' });
+    msalAccount = res.account;
+    const email=(msalAccount.username||'').toLowerCase().trim();
+    const name = USER_EMAILS[email];
+    if(!name){
+      try{ await msalInstance.logoutPopup({account:msalAccount}); }catch(_){}
+      toast('This Microsoft account is not authorized for the tracker','err'); return;
+    }
+    CURRENT_USER=name; CURRENT_ROLE=roleOf(name); ONLINE=true;
+    setSync('syncing','Connecting…');
+    enterApp();
+    try{ await downloadFromOneDrive(); }catch(e){ console.warn(e); }
+    setSync('connected','Synced');
+    updateTicketBadge();
+  }catch(e){ console.warn(e); toast('Sign-in cancelled','err'); }
+}
+async function getToken(scopes){
+  const req={ scopes:scopes||ONEDRIVE_CONFIG.scopes, account:msalAccount };
+  try{ const r=await msalInstance.acquireTokenSilent(req); return r.accessToken; }
+  catch(e){ const r=await msalInstance.acquireTokenPopup(req); return r.accessToken; }
+}
 
-        /* ─── Dashboard Component ─── */
-        function DashboardModule({ data }) {
-            const stats = [
-                { label: 'Delivery Notes', val: data.deliveries.length, icon: 'delivery', color: 'text-sky-400' },
-                { label: 'Units Deployed', val: data.deliveries.reduce((a,b) => a+b.units,0), icon: 'delivery', color: 'text-emerald-400' },
-                { label: 'Parts in Stock', val: data.spares.reduce((a,b) => a+b.stock,0), icon: 'spare', color: 'text-amber-400' },
-                { label: 'Active Tickets', val: data.tickets.filter(t => t.status !== 'Resolved').length, icon: 'ticket', color: 'text-rose-400' }
-            ];
+/* ─────────── ONEDRIVE (GRAPH) SYNC ─────────── */
+function driveContentUrl(){
+  const upn=encodeURIComponent(ONEDRIVE_CONFIG.sharedDriveUser);
+  return `https://graph.microsoft.com/v1.0/users/${upn}/drive/root:${ONEDRIVE_CONFIG.filePath}:/content`;
+}
+async function downloadFromOneDrive(){
+  if(!ONLINE) return;
+  setSync('syncing','Syncing…');
+  try{
+    const token=await getToken();
+    const res=await fetch(driveContentUrl(),{ headers:{ Authorization:'Bearer '+token } });
+    if(res.status===404){ await saveToOneDrive(); setSync('connected','Synced'); return; }
+    if(!res.ok) throw new Error('Graph '+res.status);
+    const data=await res.json();
+    if(data && data.deliveries){ state=data; saveLocal(); renderActive(); updateTicketBadge(); }
+    setSync('connected','Synced');
+  }catch(e){ console.warn('download',e); setSync('error','Sync error'); }
+}
+async function saveToOneDrive(){
+  if(!ONLINE) return;
+  setSync('syncing','Saving…');
+  try{
+    const token=await getToken();
+    const res=await fetch(driveContentUrl(),{ method:'PUT', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' }, body:JSON.stringify(state) });
+    if(!res.ok) throw new Error('Graph '+res.status);
+    setSync('connected','Synced');
+  }catch(e){ console.warn('save',e); setSync('error','Sync error'); }
+}
+async function manualSync(){ if(!ONLINE){ toast('Offline mode — data is on this device only'); return; } await downloadFromOneDrive(); await saveToOneDrive(); toast('Synced with OneDrive','ok'); }
+function setSync(cls,txt){ const d=document.getElementById('syncDot'), t=document.getElementById('syncText'); if(d) d.className='sync-dot '+(cls||''); if(t) t.textContent=txt; }
 
-            return (
-                <div className="space-y-10">
-                    <div className="grid grid-cols-4 gap-6">
-                        {stats.map((s, i) => (
-                            <div key={i} className="glass p-6 rounded-3xl border-slate-800/50">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className={`p-3 rounded-2xl bg-slate-900/50 ${s.color}`}>
-                                        <Icon name={s.icon} size={20} />
-                                    </div>
-                                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">Live Realtime</span>
-                                </div>
-                                <div className="text-4xl serif font-black mb-1">{s.val}</div>
-                                <div className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{s.label}</div>
-                            </div>
-                        ))}
-                    </div>
+/* ============================================================
+   BOOT + LOGIN
+============================================================ */
+function boot(){
+  // populate offline demo user list
+  const sel=document.getElementById('demoUser');
+  sel.innerHTML = ALL_USERS.map(u=>`<option value="${u}">${u} — ${roleOf(u)==='admin'?'Admin':'Operational'}</option>`).join('');
+  if(!loadLocal()) seedData();
+  if(!ONEDRIVE_CONFIG.clientId){
+    const b=document.getElementById('offlineBanner');
+    b.style.display='block'; b.textContent='⚠ Azure client ID not set — Microsoft sign-in disabled. Offline demo only.';
+    document.getElementById('msLoginBtn').disabled=true;
+  }
+}
+function loginDemo(){
+  CURRENT_USER=document.getElementById('demoUser').value;
+  CURRENT_ROLE=roleOf(CURRENT_USER); ONLINE=false;
+  enterApp(); setSync('','Offline'); updateTicketBadge();
+}
+function enterApp(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('userName').textContent=CURRENT_USER;
+  document.getElementById('userAvatar').textContent=(CURRENT_USER||'?').slice(0,2).toUpperCase();
+  const rb=document.getElementById('roleBadge');
+  rb.className='role-badge '+CURRENT_ROLE;
+  rb.textContent=CURRENT_ROLE==='admin'?'Admin':CURRENT_ROLE==='ops'?'Operational':'Viewer';
+  go('dashboard');
+}
+function logout(){
+  if(ONLINE && msalInstance && msalAccount){ try{ msalInstance.logoutPopup({account:msalAccount}); }catch(_){} }
+  location.reload();
+}
+function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('mini'); }
 
-                    <div className="grid grid-cols-2 gap-8">
-                        <div className="glass p-8 rounded-3xl border-slate-800/50">
-                            <h3 className="serif text-xl mb-6">Recent Activity</h3>
-                            <div className="space-y-4">
-                                {data.deliveries.slice(0, 5).map(d => (
-                                    <div key={d.id} className="flex items-center justify-between py-3 border-b border-slate-800/50 last:border-0">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-[10px] font-black text-sky-400">DN</div>
-                                            <div>
-                                                <div className="text-sm font-bold">{d.customer}</div>
-                                                <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">{d.id} · {d.orderDate}</div>
-                                            </div>
-                                        </div>
-                                        <Badge status={d.status} />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+/* ============================================================
+   ROUTER
+============================================================ */
+function go(view){
+  activeView=view;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===view));
+  renderActive();
+}
+function renderActive(){
+  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,shipping:renderShipping,tickets:renderTickets,reviews:renderReviews}[activeView];
+  if(r) document.getElementById('mainContent').innerHTML='', r();
+  updateTicketBadge();
+}
+function updateTicketBadge(){
+  const open=state.tickets.filter(t=>t.statusCoreV!=='CLOSE').length;
+  const b=document.getElementById('ticketBadge');
+  if(b){ b.style.display=open?'inline-block':'none'; b.textContent=open; }
+}
 
-                        <div className="glass p-8 rounded-3xl border-slate-800/50">
-                            <h3 className="serif text-xl mb-6">Logistics Spend</h3>
-                            <div className="flex flex-col h-full justify-between pb-8">
-                                <div>
-                                    <div className="text-6xl serif font-black text-amber-500 mb-2">
-                                        <span className="text-2xl mr-2">AED</span>
-                                        {data.shipping.reduce((a,b) => a+b.cost, 0).toLocaleString()}
-                                    </div>
-                                    <div className="text-xs text-slate-500 uppercase tracking-[0.2em] font-black">Total Verified Cost</div>
-                                </div>
-                                <div className="mt-10 p-6 rounded-2xl bg-slate-900/50 border border-slate-800/50">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <span className="text-[10px] text-slate-500 font-black uppercase">Carrier Efficiency</span>
-                                        <span className="text-[10px] text-emerald-400 font-black">Optimal</span>
-                                    </div>
-                                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                        <div className="h-full bg-emerald-500 w-[84%]"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
+/* ============================================================
+   CHART HELPERS (hand-rolled, no dependencies)
+============================================================ */
+const PALETTE=['#2563eb','#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#ec4899','#06b6d4'];
+function barChart(rows){
+  const max=Math.max(1,...rows.map(r=>r.value));
+  return rows.map((r,i)=>`<div class="bar-row"><div class="bl" title="${esc(r.label)}">${esc(r.label)}</div>
+    <div class="bar-track"><div class="bar-fill" style="width:${Math.max(3,r.value/max*100)}%;background:${r.color||PALETTE[i%PALETTE.length]}">${r.value}</div></div></div>`).join('') || '<div class="empty">No data</div>';
+}
+function donut(segs){
+  const total=segs.reduce((a,b)=>a+b.value,0)||1; let acc=0; const R=52,C=2*Math.PI*R;
+  const arcs=segs.map((s,i)=>{ const frac=s.value/total; const dash=`${frac*C} ${C}`; const off=-acc*C; acc+=frac;
+    return `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${s.color||PALETTE[i%PALETTE.length]}" stroke-width="20" stroke-dasharray="${dash}" stroke-dashoffset="${off}" transform="rotate(-90 70 70)"/>`; }).join('');
+  const legend=segs.map((s,i)=>`<span><i class="dot" style="background:${s.color||PALETTE[i%PALETTE.length]}"></i>${esc(s.label)} <b>${s.value}</b></span>`).join('');
+  return `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap"><svg width="140" height="140" viewBox="0 0 140 140">${arcs}
+    <text x="70" y="66" text-anchor="middle" font-size="26" font-weight="800" fill="#1a202c">${total}</text>
+    <text x="70" y="86" text-anchor="middle" font-size="10" fill="#94a3b8">TOTAL</text></svg>
+    <div class="legend" style="flex-direction:column;gap:7px">${legend}</div></div>`;
+}
+function groupCount(arr,key){ const m={}; arr.forEach(x=>{const k=x[key]||'—'; m[k]=(m[k]||0)+1;}); return Object.entries(m).map(([label,value])=>({label,value})); }
 
-        /* ─── Module Template (Delivery) ─── */
-        function DeliveryModule({ data, updateData, role }) {
-            const [search, setSearch] = useState("");
-            const [showModal, setShowModal] = useState(false);
-            const [editItem, setEditItem] = useState(null);
-            
-            const emptyForm = { 
-                id: '', orderDate: '', customer: '', status: 'Pending', units: 1, special: '', estDelivery: '', actDelivery: '',
-                receiverName: '', contactNumber: '', email: '', address: '', deliveryTime: '',
-                model: 'XS1', salesPerson: '', salesCoach: '', warrantyStart: '', warrantyPeriod: 12, warrantyEnd: '',
-                notes: '', customerSuccessCall: 'Pending', salesCoachDelivered: 'No', offeredFlooring: 'NO',
-                serialNo: '', sharedReviewForm: 'No', freeSession: 'No'
-            };
-            
-            const [form, setForm] = useState(emptyForm);
+/* ============================================================
+   VIEW: EXECUTIVE DASHBOARD
+============================================================ */
+function renderDashboard(){
+  const d=state.deliveries;
+  const open=d.filter(x=>x.status!=='CLOSED').length;
+  const closed=d.filter(x=>x.status==='CLOSED').length;
+  const reorder=state.stock.filter(s=>qtyInStock(s)<=s.min);
+  const openTickets=state.tickets.filter(t=>t.statusCoreV!=='CLOSE').length;
+  const totalCost=state.costing.reduce((a,b)=>a+(Number(b.cost)||0),0);
+  const satis=d.filter(x=>x.successCall==='SATISFIED').length;
+  const satisRate=d.length?Math.round(satis/d.length*100):0;
+  // warranties expiring in 90 days
+  const soon=d.filter(x=>{ const e=addMonths(x.warrantyStart,x.warrantyMonths); if(!e) return false; const days=(new Date(e)-new Date())/864e5; return days>0&&days<=90; });
+  // monthly trend (last 6 months)
+  const months=[]; const now=new Date();
+  for(let i=5;i>=0;i--){ const dt=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({key:dt.toISOString().slice(0,7),label:dt.toLocaleDateString('en-GB',{month:'short'})}); }
+  const trend=months.map(m=>({label:m.label,value:d.filter(x=>(x.deliveryDate||'').slice(0,7)===m.key).length,color:'#2563eb'}));
 
-            const handleSave = () => {
-                const updated = editItem 
-                    ? data.deliveries.map(d => d.id === editItem.id ? form : d)
-                    : [...data.deliveries, form];
-                updateData({ ...data, deliveries: updated });
-                setShowModal(false);
-                setEditItem(null);
-            };
+  const avgByModel=COST_TYPES.filter(t=>['XS1','XP1'].includes(t)).map(t=>{ const rows=state.costing.filter(c=>c.type===t); const avg=rows.length?rows.reduce((a,b)=>a+(+b.cost||0),0)/rows.length:0; return {label:'Avg '+t,value:Math.round(avg)}; });
 
-            const filtered = data.deliveries.filter(d => 
-                (d.customer && d.customer.toLowerCase().includes(search.toLowerCase())) || 
-                (d.id && d.id.toLowerCase().includes(search.toLowerCase()))
-            );
+  document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
+  <div class="view active">
+    <div class="page-head">
+      <div><div class="page-title">Executive Dashboard</div>
+      <div class="page-sub">Live operational truth across deliveries, stock, costs &amp; support · updated ${state.meta.updated?fmtDate(state.meta.updated):'—'}</div></div>
+      <div class="toolbar"><button class="btn" onclick="manualSync()">🔄 Sync</button></div>
+    </div>
 
-            return (
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                        <div className="relative w-96">
-                            <input 
-                                value={search} 
-                                onChange={e => setSearch(e.target.value)}
-                                className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl py-3 pl-12 pr-4 text-sm focus:border-sky-500 outline-none transition-all"
-                                placeholder="Search by DN ID or Customer..."
-                            />
-                            <Icon name="delivery" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                        </div>
-                        <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, id: `DN-24${String(data.deliveries.length+1).padStart(2, '0')}`, orderDate: new Date().toISOString().split('T')[0] }); setShowModal(true); }} className="px-6 py-3 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold flex items-center gap-2 transition-all">
-                            <Icon name="plus" size={16} /> New Delivery Note
-                        </button>
-                    </div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="k-label">Total Deliveries</div><div class="k-val">${d.length}</div><div class="k-sub">${closed} closed · ${open} active</div></div>
+      <div class="kpi teal"><div class="k-label">Satisfaction</div><div class="k-val">${satisRate}%</div><div class="k-sub">${satis}/${d.length} success calls</div></div>
+      <div class="kpi gold"><div class="k-label">Open Tickets</div><div class="k-val">${openTickets}</div><div class="k-sub">${state.tickets.length} total logged</div></div>
+      <div class="kpi red"><div class="k-label">Reorder Alerts</div><div class="k-val">${reorder.length}</div><div class="k-sub">items at/below min stock</div></div>
+      <div class="kpi green"><div class="k-label">Total Shipping Cost</div><div class="k-val" style="font-size:24px">${money(totalCost)}</div><div class="k-sub">${state.costing.length} delivery costs</div></div>
+    </div>
 
-                    <div className="glass rounded-3xl overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse min-w-[2000px]">
-                                <thead>
-                                    <tr className="bg-slate-900/50">
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky left-0 bg-[#08112b] z-10">ID</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky left-24 bg-[#08112b] z-10">Customer</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Status</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Model</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Serial No</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Receiver</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Contact</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Order Date</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Delivery Date</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Warranty End</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Sales Coach</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Success Call</th>
-                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-800/50">
-                                    {filtered.map(d => (
-                                        <tr key={d.id} className="hover:bg-slate-800/30 transition-colors">
-                                            <td className="px-6 py-4 text-xs font-black text-sky-400 font-mono sticky left-0 bg-[#04091a]/80 backdrop-blur-md z-10">{d.id}</td>
-                                            <td className="px-6 py-4 text-sm font-bold sticky left-24 bg-[#04091a]/80 backdrop-blur-md z-10">{d.customer}</td>
-                                            <td className="px-6 py-4"><Badge status={d.status} /></td>
-                                            <td className="px-6 py-4 text-xs font-bold text-indigo-400">{d.model}</td>
-                                            <td className="px-6 py-4 text-xs font-mono text-slate-400">{d.serialNo || 'N/A'}</td>
-                                            <td className="px-6 py-4 text-xs text-slate-300">{d.receiverName}</td>
-                                            <td className="px-6 py-4 text-xs text-slate-400 font-mono">{d.contactNumber}</td>
-                                            <td className="px-6 py-4 text-xs text-slate-500 font-bold">{d.orderDate}</td>
-                                            <td className="px-6 py-4 text-xs text-emerald-500 font-bold">{d.actDelivery || d.estDelivery}</td>
-                                            <td className="px-6 py-4 text-xs text-rose-400 font-bold">{d.warrantyEnd}</td>
-                                            <td className="px-6 py-4 text-xs text-slate-500 font-bold">{d.salesCoach}</td>
-                                            <td className="px-6 py-4 text-xs">
-                                                <span className={`px-2 py-0.5 rounded-[4px] text-[9px] font-black uppercase ${d.customerSuccessCall === 'Done' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
-                                                    {d.customerSuccessCall}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={() => { setEditItem(d); setForm({...d}); setShowModal(true); }} className="p-2 hover:bg-sky-500/10 rounded-lg text-sky-500 transition-colors"><Icon name="edit" size={14} /></button>
-                                                    <button onClick={() => updateData({...data, deliveries: data.deliveries.filter(x => x.id !== d.id)})} className="p-2 hover:bg-rose-500/10 rounded-lg text-rose-500 transition-colors"><Icon name="trash" size={14} /></button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+    <div class="grid-2">
+      <div class="panel"><h3>📈 Deliveries — last 6 months</h3><div class="p-sub">Monthly delivery volume</div>${barChart(trend)}</div>
+      <div class="panel"><h3>🚦 Delivery status</h3><div class="p-sub">Pipeline breakdown</div>${donut(STATUSES.map((s,i)=>({label:s.replace('DELIVERED - ','').replace('INSTALLATION PENDING','INSTALL PEND.').replace('PENDING SESSION','PEND. SESSION'),value:d.filter(x=>x.status===s).length,color:PALETTE[i]})).filter(s=>s.value))}</div>
+    </div>
 
-                    {showModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-                            <div className="max-w-4xl w-full glass rounded-3xl p-8 border-sky-500/20 shadow-2xl my-auto">
-                                <div className="flex items-center justify-between mb-8">
-                                    <h2 className="serif text-2xl">Delivery Details & Logistics Log</h2>
-                                    <div className="flex items-center gap-2">
-                                        <Badge status={form.status} />
-                                        <span className="text-[10px] text-slate-500 font-mono">{form.id}</span>
-                                    </div>
-                                </div>
-                                
-                                <div className="grid grid-cols-3 gap-6">
-                                    {/* Section 1: Core Info */}
-                                    <div className="space-y-4">
-                                        <h3 className="text-[10px] text-sky-500 font-black uppercase tracking-[0.2em] border-b border-sky-500/10 pb-2">Customer Info</h3>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Customer / Entity</label>
-                                            <input value={form.customer} onChange={e => setForm({...form, customer: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Receiver Name</label>
-                                            <input value={form.receiverName} onChange={e => setForm({...form, receiverName: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Contact Number</label>
-                                            <input value={form.contactNumber} onChange={e => setForm({...form, contactNumber: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Email Address</label>
-                                            <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Delivery Address</label>
-                                            <textarea value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm h-20" />
-                                        </div>
-                                    </div>
+    <div class="grid-3">
+      <div class="panel"><h3>🏷️ By model</h3>${barChart(groupCount(d,'model').sort((a,b)=>b.value-a.value).map((r,i)=>({...r,color:PALETTE[i%PALETTE.length]})))}</div>
+      <div class="panel"><h3>📍 By region</h3>${barChart(groupCount(d,'region').sort((a,b)=>b.value-a.value).map((r,i)=>({...r,color:'#0d9488'})))}</div>
+      <div class="panel"><h3>💵 Avg cost / unit</h3>${barChart(avgByModel.map(r=>({...r,color:'#f59e0b'})))}<div class="p-sub" style="margin-top:10px">Offloading avg & unit costs from the COSTING log.</div></div>
+    </div>
 
-                                    {/* Section 2: Logistics */}
-                                    <div className="space-y-4">
-                                        <h3 className="text-[10px] text-amber-500 font-black uppercase tracking-[0.2em] border-b border-amber-500/10 pb-2">Logistics & Dates</h3>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Order Date</label>
-                                                <input type="date" value={form.orderDate} onChange={e => setForm({...form, orderDate: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Delivery Date</label>
-                                                <input type="date" value={form.actDelivery} onChange={e => setForm({...form, actDelivery: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Status</label>
-                                                <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs">
-                                                    {['Pending', 'In Transit', 'Delivered', 'Cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Time</label>
-                                                <input value={form.deliveryTime} onChange={e => setForm({...form, deliveryTime: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" placeholder="10:00 AM" />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Model Delivered</label>
-                                            <select value={form.model} onChange={e => setForm({...form, model: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs">
-                                                {['XS1', 'XP1', 'Pro', 'Accessories Only'].map(m => <option key={m} value={m}>{m}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Serial Number</label>
-                                            <input value={form.serialNo} onChange={e => setForm({...form, serialNo: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm font-mono" />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sales Person</label>
-                                                <input value={form.salesPerson} onChange={e => setForm({...form, salesPerson: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sales Coach</label>
-                                                <input value={form.salesCoach} onChange={e => setForm({...form, salesCoach: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
-                                            </div>
-                                        </div>
-                                    </div>
+    <div class="grid-2">
+      <div class="panel"><h3>⚠️ Reorder watchlist</h3><div class="p-sub">Items at or below minimum stock</div>
+        ${reorder.length?reorder.map(s=>`<div class="reorder-alert">🔴 <b>${esc(s.product)}</b> — ${qtyInStock(s)} in stock (min ${s.min}) · ${esc(s.cat)}</div>`).join(''):'<div class="empty">All stock healthy ✅</div>'}</div>
+      <div class="panel"><h3>📅 Warranties expiring (90 days)</h3><div class="p-sub">Proactive customer success follow-ups</div>
+        ${soon.length?soon.map(x=>`<div class="bar-row"><div class="bl" style="width:auto;flex:1">${esc(x.receiver)} <span class="tag">${esc(x.model)}</span></div><span class="pill amber">${fmtDate(addMonths(x.warrantyStart,x.warrantyMonths))}</span></div>`).join(''):'<div class="empty">None in the next 90 days</div>'}</div>
+    </div>
+  </div>`);
+}
 
-                                    {/* Section 3: Post-Delivery */}
-                                    <div className="space-y-4">
-                                        <h3 className="text-[10px] text-emerald-500 font-black uppercase tracking-[0.2em] border-b border-emerald-500/10 pb-2">Warranty & Success</h3>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Warranty Start</label>
-                                                <input type="date" value={form.warrantyStart} onChange={e => setForm({...form, warrantyStart: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Warranty (Mo)</label>
-                                                <input type="number" value={form.warrantyPeriod} onChange={e => setForm({...form, warrantyPeriod: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Warranty End</label>
-                                            <input type="date" value={form.warrantyEnd} onChange={e => setForm({...form, warrantyEnd: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm" />
-                                        </div>
-                                        
-                                        <div className="space-y-3 pt-2">
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Success Call</label>
-                                                <select value={form.customerSuccessCall} onChange={e => setForm({...form, customerSuccessCall: e.target.value})} className="bg-transparent text-xs font-bold text-sky-400 outline-none">
-                                                    {['Pending', 'Attempted', 'Done', 'N/A'].map(v => <option key={v} value={v}>{v}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Flooring Offered?</label>
-                                                <select value={form.offeredFlooring} onChange={e => setForm({...form, offeredFlooring: e.target.value})} className="bg-transparent text-xs font-bold text-sky-400 outline-none">
-                                                    {['YES', 'NO'].map(v => <option key={v} value={v}>{v}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Review Shared?</label>
-                                                <select value={form.sharedReviewForm} onChange={e => setForm({...form, sharedReviewForm: e.target.value})} className="bg-transparent text-xs font-bold text-sky-400 outline-none">
-                                                    {['Yes', 'No'].map(v => <option key={v} value={v}>{v}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Free Demo?</label>
-                                                <select value={form.freeSession} onChange={e => setForm({...form, freeSession: e.target.value})} className="bg-transparent text-xs font-bold text-sky-400 outline-none">
-                                                    {['Scheduled', 'Done', 'No'].map(v => <option key={v} value={v}>{v}</option>)}
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+/* ============================================================
+   VIEW: DELIVERIES  (Stock Movement Log — all detail columns)
+============================================================ */
+let delFilter='ALL', delSearch='';
+function renderDeliveries(){
+  const cols=['Delivery Note ID','Receiver','Contact','Email','Address','Region','Delivery Date','Time','Status','Model','Sales Person','Sales Coach','Warranty Start','Months','Warranty End','Customer Call','Coach Delivered','Flooring','Serial No.','Review Form','Free Session','Notes'];
+  let rows=state.deliveries.slice();
+  if(delFilter!=='ALL') rows=rows.filter(r=>r.status===delFilter);
+  if(delSearch){ const q=delSearch.toLowerCase(); rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q)); }
+  const statusPill=s=>{const m={'CLOSED':'green','OPEN':'grey','POSTPONED':'red'};const c=s&&s.startsWith('DELIVERED')?'blue':(m[s]||'amber');return `<span class="pill ${c}">${esc(s||'—')}</span>`;};
 
-                                <div className="mt-8 pt-8 border-t border-slate-800 flex gap-4">
-                                    <div className="flex-1">
-                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1 block">General Notes</label>
-                                        <input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-3 text-sm" placeholder="Additional shipment or customer notes..." />
-                                    </div>
-                                    <div className="flex items-end gap-3">
-                                        <button onClick={() => setShowModal(false)} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all">Cancel</button>
-                                        <button onClick={handleSave} className="px-10 py-3 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold shadow-lg shadow-sky-500/20 transition-all">Save Operations Record</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-        }
+  document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
+  <div class="view active">
+    <div class="page-head">
+      <div><div class="page-title">Deliveries</div><div class="page-sub">${state.deliveries.length} delivery notes · full operational detail</div></div>
+      <div class="toolbar">
+        <div class="search"><input id="delSearch" placeholder="Search receiver, model, ID…" value="${esc(delSearch)}" oninput="delSearch=this.value;renderActive()"></div>
+        <button class="btn" onclick="exportCSV('deliveries')">⬇ CSV</button>
+        ${canEdit()?`<button class="btn primary" onclick="openDelivery()">＋ New delivery</button>`:''}
+      </div>
+    </div>
+    <div class="filter-pills">
+      ${['ALL',...STATUSES].map(s=>`<button class="filter-pill ${delFilter===s?'active':''}" onclick="delFilter='${s}';renderActive()">${s==='ALL'?'All':esc(s.replace('DELIVERED - ',''))} <span class="muted">${s==='ALL'?state.deliveries.length:state.deliveries.filter(r=>r.status===s).length}</span></button>`).join('')}
+    </div>
+    <div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}<th>⚙</th></tr></thead><tbody>
+      ${rows.length?rows.map(r=>`<tr>
+        <td><b>${esc(r.id)}</b>${r.locked?' 🔒':''}</td><td>${esc(r.receiver)}</td><td>${esc(r.contact)}</td><td>${esc(r.email)}</td>
+        <td class="note-cell">${esc(r.address)}</td><td><span class="tag">${esc(r.region||'—')}</span></td>
+        <td>${fmtDate(r.deliveryDate)}</td><td>${esc(r.deliveryTime||'')}</td><td>${statusPill(r.status)}</td>
+        <td><span class="tag">${esc(r.model)}</span></td><td>${esc(r.salesPerson)}</td><td>${esc(r.salesCoach)}</td>
+        <td>${fmtDate(r.warrantyStart)}</td><td>${esc(r.warrantyMonths||'')}</td><td>${fmtDate(addMonths(r.warrantyStart,r.warrantyMonths))}</td>
+        <td>${r.successCall?`<span class="pill ${r.successCall==='SATISFIED'?'green':r.successCall==='UNSATISFIED'?'red':'grey'}">${esc(r.successCall)}</span>`:''}</td>
+        <td>${esc(r.coachDelivered||'')}</td><td>${esc(r.flooring||'')}</td><td>${esc(r.serialNo||'')}</td>
+        <td>${esc(r.reviewForm||'')}</td><td>${esc(r.freeSession||'')}</td><td class="note-cell">${esc(r.notes||'')}</td>
+        <td class="actions">${canEditRow(r)?`<button class="mini-btn" onclick="openDelivery('${r.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delDelivery('${r.id}')">✕</button>`:''}</td>
+      </tr>`).join(''):`<tr><td colspan="${cols.length+1}"><div class="empty">No deliveries match.</div></td></tr>`}
+    </tbody></table></div>
+  </div>`);
+}
+function openDelivery(id){
+  if(!requireEdit())return;
+  const r = id? state.deliveries.find(x=>x.id===id) : {id:nextDeliveryId(),warrantyMonths:36,region:'Dubai',status:'OPEN',deliveryTime:'09:00am'};
+  if(id && !canEditRow(r)){ toast('This record is locked — admin only','err'); return; }
+  const sel=(name,opts,val)=>`<select name="${name}">${['',...opts].map(o=>`<option ${String(val||'')===String(o)?'selected':''}>${o}</option>`).join('')}</select>`;
+  modal(id?'Edit delivery — '+r.id:'New delivery', `
+    <div class="form-grid">
+      <div class="fld"><label>Delivery Note ID</label><input name="id" value="${esc(r.id)}" ${id?'readonly':''}></div>
+      <div class="fld"><label>Receiver's name</label><input name="receiver" value="${esc(r.receiver||'')}"></div>
+      <div class="fld"><label>Contact number</label><input name="contact" value="${esc(r.contact||'')}"></div>
+      <div class="fld"><label>Email</label><input name="email" value="${esc(r.email||'')}"></div>
+      <div class="fld full"><label>Address</label><input name="address" value="${esc(r.address||'')}"></div>
+      <div class="fld"><label>Region</label>${sel('region',REGIONS,r.region)}</div>
+      <div class="fld"><label>Model delivered</label>${sel('model',MODELS,r.model)}</div>
+      <div class="fld"><label>Delivery date</label><input type="date" name="deliveryDate" value="${esc(r.deliveryDate||'')}"></div>
+      <div class="fld"><label>Delivery time</label><input name="deliveryTime" value="${esc(r.deliveryTime||'')}"></div>
+      <div class="fld"><label>Current status</label>${sel('status',STATUSES,r.status)}</div>
+      <div class="fld"><label>Closed date</label><input type="date" name="closedDate" value="${esc(r.closedDate||'')}"></div>
+      <div class="fld"><label>Sales person</label>${sel('salesPerson',SALES_PEOPLE,r.salesPerson)}</div>
+      <div class="fld"><label>Sales coach</label>${sel('salesCoach',SALES_COACHES,r.salesCoach)}</div>
+      <div class="fld"><label>Warranty start</label><input type="date" name="warrantyStart" value="${esc(r.warrantyStart||'')}"></div>
+      <div class="fld"><label>Warranty period (months)</label>${sel('warrantyMonths',WARRANTY_MONTHS,r.warrantyMonths)}</div>
+      <div class="fld"><label>Customer success call</label>${sel('successCall',SATISFACTION,r.successCall)}</div>
+      <div class="fld"><label>Sales coach delivered?</label>${sel('coachDelivered',YESNO,r.coachDelivered)}</div>
+      <div class="fld"><label>Did we offer flooring?</label>${sel('flooring',YESNO,r.flooring)}</div>
+      <div class="fld"><label>Serial No.</label><input name="serialNo" value="${esc(r.serialNo||'')}"></div>
+      <div class="fld"><label>Shared review form</label>${sel('reviewForm',REVIEW_OPTS,r.reviewForm)}</div>
+      <div class="fld"><label>Free session / demo</label><input name="freeSession" value="${esc(r.freeSession||'')}"></div>
+      <div class="fld full"><label>Notes [date, note]</label><textarea name="notes" rows="2">${esc(r.notes||'')}</textarea></div>
+      ${CURRENT_ROLE==='admin'?`<div class="fld"><label>Lock record (admin)</label><select name="locked"><option value="">No</option><option value="1" ${r.locked?'selected':''}>Locked</option></select></div>`:''}
+    </div>
+    <div class="fld hint" style="margin-top:10px">Warranty end auto-calculates from start + period.</div>`,
+    ()=>{ const f=getForm(); f.warrantyMonths=Number(f.warrantyMonths)||''; f.locked=!!f.locked;
+      if(id){ Object.assign(r,f); } else { state.deliveries.push(f); }
+      persist(); closeModal(); toast('Delivery saved','ok'); });
+}
+function delDelivery(id){ if(!canDelete())return; if(!confirm('Delete delivery '+id+'?'))return; state.deliveries=state.deliveries.filter(x=>x.id!==id); persist(); toast('Deleted'); }
 
-        /* ─── Spare Parts Module ─── */
-        function SpareModule({ data, updateData, role }) {
-            const [search, setSearch] = useState("");
-            const [showModal, setShowModal] = useState(false);
-            const [editItem, setEditItem] = useState(null);
-            const [form, setForm] = useState({ id: '', partName: '', partNo: '', category: 'Electronics', stock: 0, minStock: 5, location: 'Dubai WH', updated: '' });
+/* ============================================================
+   VIEW: SPARES & STOCK  (inventory + accessories issued log)
+============================================================ */
+let spareTab='stock';
+function renderSpares(){
+  const main=document.getElementById('mainContent');
+  main.insertAdjacentHTML('beforeend',`
+  <div class="view active">
+    <div class="page-head">
+      <div><div class="page-title">Spares &amp; Stock</div><div class="page-sub">Inventory levels, reorder control &amp; accessory/spare issue log</div></div>
+      <div class="toolbar">
+        <button class="btn ${spareTab==='stock'?'primary':''}" onclick="spareTab='stock';renderActive()">📦 Inventory</button>
+        <button class="btn ${spareTab==='issued'?'primary':''}" onclick="spareTab='issued';renderActive()">🧾 Issued log</button>
+        ${canEdit()&&spareTab==='stock'?`<button class="btn primary" onclick="openStock()">＋ Item</button>`:''}
+        ${canEdit()&&spareTab==='issued'?`<button class="btn primary" onclick="openIssue()">＋ Issue</button>`:''}
+      </div>
+    </div>
+    <div id="spareBody"></div>
+  </div>`);
+  const body=document.getElementById('spareBody');
+  if(spareTab==='stock'){
+    const cats=STOCK_CATS;
+    body.innerHTML = cats.map(cat=>{
+      const items=state.stock.filter(s=>s.cat===cat);
+      if(!items.length) return '';
+      return `<div class="panel" style="margin-bottom:14px"><h3>${cat==='Fitness Equipment'?'🏋️':cat==='Accessories'?'🎒':'🔧'} ${cat}</h3>
+      <div class="table-wrap" style="box-shadow:none;border:none"><table><thead><tr><th>Product</th><th>SKU</th><th>Supplier</th><th>Received</th><th>Moved</th><th>In Stock</th><th>Min</th><th>Reorder?</th><th>⚙</th></tr></thead><tbody>
+      ${items.map(s=>{const q=qtyInStock(s);const re=q<=s.min;return `<tr><td><b>${esc(s.product)}</b></td><td>${esc(s.sku)}</td><td>${esc(s.supplier)}</td><td>${s.received}</td><td>${s.moved}</td><td><b>${q}</b></td><td>${s.min}</td><td>${re?'<span class="pill red">REORDER</span>':'<span class="pill green">OK</span>'}</td>
+      <td class="actions">${canEdit()?`<button class="mini-btn" onclick="openStock('${s.id}')">Edit</button> <button class="mini-btn" onclick="openMove('${s.id}')">Move</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delStock('${s.id}')">✕</button>`:''}</td></tr>`;}).join('')}
+      </tbody></table></div></div>`;
+    }).join('');
+  } else {
+    body.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Client</th><th>Region</th><th>Accessory / Spare</th><th>Qty</th><th>⚙</th></tr></thead><tbody>
+      ${state.accessories.length?state.accessories.map(a=>`<tr><td>${fmtDate(a.date)}</td><td><b>${esc(a.client)}</b></td><td><span class="tag">${esc(a.region)}</span></td><td>${esc(a.item)}</td><td>${a.qty}</td>
+      <td class="actions">${canEdit()?`<button class="mini-btn" onclick="openIssue('${a.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delIssue('${a.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="6"><div class="empty">No issued items logged.</div></td></tr>`}
+    </tbody></table></div>`;
+  }
+}
+function openStock(id){ if(!requireEdit())return; const s=id?state.stock.find(x=>x.id===id):{id:uid(),cat:'Spare Parts',supplier:'OxeFit Inc.',received:0,moved:0,min:2};
+  const sel=(n,o,v)=>`<select name="${n}">${o.map(x=>`<option ${v===x?'selected':''}>${x}</option>`).join('')}</select>`;
+  modal(id?'Edit item':'New stock item',`<div class="form-grid">
+    <div class="fld"><label>Product name</label><input name="product" value="${esc(s.product||'')}"></div>
+    <div class="fld"><label>Category</label>${sel('cat',STOCK_CATS,s.cat)}</div>
+    <div class="fld"><label>SKU</label><input name="sku" value="${esc(s.sku||'')}"></div>
+    <div class="fld"><label>Supplier</label><input name="supplier" value="${esc(s.supplier||'')}"></div>
+    <div class="fld"><label>Stock received</label><input type="number" name="received" value="${s.received||0}"></div>
+    <div class="fld"><label>Stocks moved</label><input type="number" name="moved" value="${s.moved||0}"></div>
+    <div class="fld"><label>Minimum stock level</label><input type="number" name="min" value="${s.min||0}"></div></div>`,
+    ()=>{const f=getForm();['received','moved','min'].forEach(k=>f[k]=Number(f[k])||0); if(id)Object.assign(s,f);else state.stock.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+}
+function openMove(id){ if(!requireEdit())return; const s=state.stock.find(x=>x.id===id);
+  modal('Stock movement — '+esc(s.product),`<div class="fld"><label>Quantity to move out (current in stock: ${qtyInStock(s)})</label><input type="number" name="qty" value="1" min="1"></div>
+    <div class="fld" style="margin-top:12px"><label>Issued to (client / note, optional → adds to Issued log)</label><input name="client"></div>
+    <div class="fld" style="margin-top:12px"><label>Region</label><select name="region">${REGIONS.map(r=>`<option>${r}</option>`).join('')}</select></div>`,
+    ()=>{const f=getForm();const q=Number(f.qty)||0; s.moved=(Number(s.moved)||0)+q;
+      if(f.client) state.accessories.unshift({id:uid(),date:new Date().toISOString().slice(0,10),client:f.client,region:f.region,item:s.product,qty:q});
+      persist(); closeModal(); toast('Moved '+q+' units','ok');});
+}
+function delStock(id){ if(!canDelete())return; if(!confirm('Delete item?'))return; state.stock=state.stock.filter(x=>x.id!==id); persist(); }
+function openIssue(id){ if(!requireEdit())return; const a=id?state.accessories.find(x=>x.id===id):{id:uid(),date:new Date().toISOString().slice(0,10),region:'Dubai',qty:1};
+  modal(id?'Edit issued item':'Issue accessory / spare',`<div class="form-grid">
+    <div class="fld"><label>Date</label><input type="date" name="date" value="${esc(a.date||'')}"></div>
+    <div class="fld"><label>Client name</label><input name="client" value="${esc(a.client||'')}"></div>
+    <div class="fld"><label>Region</label><select name="region">${REGIONS.map(r=>`<option ${a.region===r?'selected':''}>${r}</option>`).join('')}</select></div>
+    <div class="fld"><label>Accessory / Sparepart</label><input name="item" value="${esc(a.item||'')}"></div>
+    <div class="fld"><label>Quantity</label><input type="number" name="qty" value="${a.qty||1}"></div></div>`,
+    ()=>{const f=getForm();f.qty=Number(f.qty)||1; if(id)Object.assign(a,f);else state.accessories.unshift({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+}
+function delIssue(id){ if(!canDelete())return; state.accessories=state.accessories.filter(x=>x.id!==id); persist(); }
 
-            const handleSave = () => {
-                const updated = editItem 
-                    ? data.spares.map(s => s.id === editItem.id ? form : s)
-                    : [...data.spares, form];
-                updateData({ ...data, spares: updated });
-                setShowModal(false);
-            };
+/* ============================================================
+   VIEW: SHIPPING & COSTS  (COSTING log)
+============================================================ */
+function renderShipping(){
+  const c=state.costing;
+  const total=c.reduce((a,b)=>a+(+b.cost||0),0);
+  const avg=k=>{const r=c.filter(x=>x.type===k);return r.length?Math.round(r.reduce((a,b)=>a+(+b.cost||0),0)/r.length):0;};
+  document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
+  <div class="view active">
+    <div class="page-head">
+      <div><div class="page-title">Shipping &amp; Costs</div><div class="page-sub">Per-delivery cost log &amp; rolling averages</div></div>
+      <div class="toolbar"><button class="btn" onclick="exportCSV('costing')">⬇ CSV</button>${canEdit()?`<button class="btn primary" onclick="openCost()">＋ Cost entry</button>`:''}</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi green"><div class="k-label">Total Cost</div><div class="k-val" style="font-size:24px">${money(total)}</div><div class="k-sub">${c.length} entries</div></div>
+      <div class="kpi"><div class="k-label">Avg cost / XS1</div><div class="k-val" style="font-size:24px">${money(avg('XS1'))}</div></div>
+      <div class="kpi teal"><div class="k-label">Avg cost / XP1</div><div class="k-val" style="font-size:24px">${money(avg('XP1'))}</div></div>
+      <div class="kpi gold"><div class="k-label">Avg offloading</div><div class="k-val" style="font-size:24px">${money(avg('Offloading'))}</div></div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Delivery Note ID</th><th>Receiver</th><th>Type</th><th>Address</th><th>Delivery Date</th><th>Sales Person</th><th>Costing</th><th>⚙</th></tr></thead><tbody>
+      ${c.length?c.map(x=>`<tr><td><b>${esc(x.noteId)}</b></td><td>${esc(x.receiver)}</td><td><span class="tag">${esc(x.type)}</span></td><td class="note-cell">${esc(x.address)}</td><td>${fmtDate(x.date)}</td><td>${esc(x.salesPerson)}</td><td><b>${money(x.cost)}</b></td>
+      <td class="actions">${canEdit()?`<button class="mini-btn" onclick="openCost('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delCost('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="8"><div class="empty">No cost entries.</div></td></tr>`}
+    </tbody></table></div>
+  </div>`);
+}
+function openCost(id){ if(!requireEdit())return; const x=id?state.costing.find(r=>r.id===id):{id:uid(),type:'XS1',date:new Date().toISOString().slice(0,10)};
+  const linked=state.deliveries.map(d=>d.id);
+  modal(id?'Edit cost entry':'New cost entry',`<div class="form-grid">
+    <div class="fld"><label>Delivery Note ID</label><input name="noteId" list="dlist" value="${esc(x.noteId||'')}"><datalist id="dlist">${linked.map(i=>`<option>${i}</option>`).join('')}</datalist></div>
+    <div class="fld"><label>Receiver</label><input name="receiver" value="${esc(x.receiver||'')}"></div>
+    <div class="fld"><label>Type</label><select name="type">${COST_TYPES.map(t=>`<option ${x.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="fld"><label>Address / Region</label><input name="address" value="${esc(x.address||'')}"></div>
+    <div class="fld"><label>Delivery date</label><input type="date" name="date" value="${esc(x.date||'')}"></div>
+    <div class="fld"><label>Sales person</label><select name="salesPerson">${['',...SALES_PEOPLE].map(s=>`<option ${x.salesPerson===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="fld"><label>Costing (AED)</label><input type="number" name="cost" value="${x.cost||0}"></div></div>`,
+    ()=>{const f=getForm();f.cost=Number(f.cost)||0; if(id)Object.assign(x,f);else state.costing.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+}
+function delCost(id){ if(!canDelete())return; state.costing=state.costing.filter(x=>x.id!==id); persist(); }
 
-            return (
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                        <input value={search} onChange={e => setSearch(e.target.value)} className="w-96 bg-[#0d1c3d] border border-[#1a3360] rounded-xl py-3 px-4 text-sm" placeholder="Search Spares..." />
-                        <button onClick={() => { setEditItem(null); setForm({ id: `SP-${String(data.spares.length+1).padStart(3, '0')}`, partName: '', partNo: '', category: 'Electronics', stock: 0, minStock: 5, location: 'Dubai WH', updated: new Date().toISOString().split('T')[0] }); setShowModal(true); }} className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl font-bold flex items-center gap-2 transition-all">
-                            <Icon name="plus" size={16} /> Add Part
-                        </button>
-                    </div>
-                    <div className="glass rounded-3xl overflow-hidden">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-900/50">
-                                <tr>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Part ID</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Name</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Category</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Stock</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Location</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800/50">
-                                {data.spares.map(s => (
-                                    <tr key={s.id}>
-                                        <td className="px-6 py-4 font-mono text-amber-500 text-xs">{s.id}</td>
-                                        <td className="px-6 py-4 font-bold">{s.partName}</td>
-                                        <td className="px-6 py-4 text-xs font-bold uppercase text-slate-500">{s.category}</td>
-                                        <td className={`px-6 py-4 font-black ${s.stock < s.minStock ? 'text-rose-500' : 'text-emerald-500'}`}>{s.stock}</td>
-                                        <td className="px-6 py-4 text-xs font-bold uppercase text-slate-500">{s.location}</td>
-                                        <td className="px-6 py-4">
-                                            <button onClick={() => { setEditItem(s); setForm({...s}); setShowModal(true); }} className="text-sky-500"><Icon name="edit" size={14} /></button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    {showModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md">
-                            <div className="max-w-xl w-full glass rounded-3xl p-8 border-sky-500/20 shadow-2xl">
-                                <h2 className="serif text-2xl mb-6">Part Details</h2>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="col-span-2 space-y-1">
-                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Part Name</label>
-                                        <input value={form.partName} onChange={e => setForm({...form, partName: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-3 text-sm" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Stock</label>
-                                        <input type="number" value={form.stock} onChange={e => setForm({...form, stock: parseInt(e.target.value)})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-3 text-sm" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Min Stock</label>
-                                        <input type="number" value={form.minStock} onChange={e => setForm({...form, minStock: parseInt(e.target.value)})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-3 text-sm" />
-                                    </div>
-                                </div>
-                                <div className="mt-8 flex gap-3">
-                                    <button onClick={() => setShowModal(false)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all">Cancel</button>
-                                    <button onClick={handleSave} className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl font-bold transition-all">Save Part</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-        }
+/* ============================================================
+   VIEW: TICKETS  (+ Outlook import via Graph Mail.Read)
+============================================================ */
+function renderTickets(){
+  const t=state.tickets;
+  const sp=s=>{const m={'CLOSE':'green','OPEN':'amber','UNDER PROGRESS':'blue'};return `<span class="pill ${m[s]||'grey'}">${esc(s||'—')}</span>`;};
+  document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
+  <div class="view active">
+    <div class="page-head">
+      <div><div class="page-title">Tickets</div><div class="page-sub">Complaint &amp; support tracking · CoreV ⇄ OxeFit</div></div>
+      <div class="toolbar">
+        <button class="btn" onclick="importOutlook()" ${ONLINE?'':'disabled title="Sign in with Microsoft to import"'}>📧 Import from Outlook</button>
+        <button class="btn" onclick="exportCSV('tickets')">⬇ CSV</button>
+        ${canEdit()?`<button class="btn primary" onclick="openTicket()">＋ New ticket</button>`:''}
+      </div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Code</th><th>Serial</th><th>Client</th><th>Date</th><th>Issue</th><th>Latest update</th><th>CoreV status</th><th>OxeFit status</th><th>Reported by</th><th>Assisted by</th><th>Remarks</th><th>⚙</th></tr></thead><tbody>
+      ${t.length?t.map(x=>`<tr><td><b>${esc(x.code)}</b></td><td>${esc(x.serial||'')}</td><td>${esc(x.client)}</td><td>${fmtDate(x.date)}</td>
+      <td class="note-cell">${esc(x.issue)}</td><td class="note-cell">${esc(x.update||'')}</td><td>${sp(x.statusCoreV)}</td><td>${sp(x.statusOxe)}</td><td>${esc(x.reportedBy)}</td><td>${esc(x.assistedBy)}</td><td class="note-cell">${esc(x.remarks||'')}</td>
+      <td class="actions">${x.client?`<button class="mini-btn" title="Reply in Outlook" onclick="replyOutlook('${x.id}')">↩</button> `:''}${canEdit()?`<button class="mini-btn" onclick="openTicket('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delTicket('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="12"><div class="empty">No tickets logged.</div></td></tr>`}
+    </tbody></table></div>
+  </div>`);
+}
+function openTicket(id){ if(!requireEdit())return; const x=id?state.tickets.find(r=>r.id===id):{id:uid(),code:nextTicketCode(),date:new Date().toISOString().slice(0,10),statusCoreV:'OPEN',statusOxe:'OPEN',reportedBy:CURRENT_USER&&COREV_TEAM.includes(CURRENT_USER.toUpperCase())?CURRENT_USER.toUpperCase():''};
+  const sel=(n,o,v)=>`<select name="${n}">${['',...o].map(t=>`<option ${String(v||'')===t?'selected':''}>${t}</option>`).join('')}</select>`;
+  modal(id?'Edit ticket — '+x.code:'New ticket',`<div class="form-grid">
+    <div class="fld"><label>Complaint code</label><input name="code" value="${esc(x.code)}"></div>
+    <div class="fld"><label>Serial No.</label><input name="serial" value="${esc(x.serial||'')}"></div>
+    <div class="fld"><label>Client name</label><input name="client" value="${esc(x.client||'')}"></div>
+    <div class="fld"><label>Date of complaint</label><input type="date" name="date" value="${esc(x.date||'')}"></div>
+    <div class="fld full"><label>Issue / problem</label><textarea name="issue" rows="3">${esc(x.issue||'')}</textarea></div>
+    <div class="fld full"><label>Latest update</label><textarea name="update" rows="2">${esc(x.update||'')}</textarea></div>
+    <div class="fld"><label>Status (CoreV team)</label>${sel('statusCoreV',TICKET_STATUS,x.statusCoreV)}</div>
+    <div class="fld"><label>Status (OxeFit team)</label>${sel('statusOxe',TICKET_STATUS,x.statusOxe)}</div>
+    <div class="fld"><label>Reported by (CoreV)</label>${sel('reportedBy',COREV_TEAM,x.reportedBy)}</div>
+    <div class="fld"><label>Assisted by (OxeFit)</label>${sel('assistedBy',OXEFIT_TEAM,x.assistedBy)}</div>
+    <div class="fld full"><label>Remarks</label><textarea name="remarks" rows="2">${esc(x.remarks||'')}</textarea></div></div>`,
+    ()=>{const f=getForm(); if(id)Object.assign(x,f);else state.tickets.push({id:uid(),...f}); persist(); closeModal(); toast('Ticket saved','ok');});
+}
+function delTicket(id){ if(!canDelete())return; if(!confirm('Delete ticket?'))return; state.tickets=state.tickets.filter(x=>x.id!==id); persist(); }
+function replyOutlook(id){ const x=state.tickets.find(r=>r.id===id); const d=state.deliveries.find(dd=>dd.receiver&&x.client&&dd.receiver.toLowerCase().includes(x.client.toLowerCase().split(' ')[0])); const to=d?d.email:''; const subj=encodeURIComponent('['+x.code+'] '+x.client+' — support update'); const body=encodeURIComponent('Hello,\n\nRegarding: '+x.issue+'\n\nLatest update: '+(x.update||'')+'\n\nBest regards,\n'+(CURRENT_USER||'CoreV Team')); window.open('https://outlook.office.com/mail/deeplink/compose?to='+encodeURIComponent(to)+'&subject='+subj+'&body='+body,'_blank'); }
 
-        /* ─── Shipping Logs Module ─── */
-        function ShippingModule({ data, updateData, role }) {
-            return (
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                        <h3 className="serif text-xl">Logistics Expense Tracker</h3>
-                        <button className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold transition-all flex items-center gap-2">
-                             <Icon name="plus" size={16} /> New Log
-                        </button>
-                    </div>
-                    <div className="glass rounded-3xl overflow-hidden">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-900/50">
-                                <tr>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Log ID</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Carrier</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Route</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Cost (AED)</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data.shipping.map(s => (
-                                    <tr key={s.id} className="border-b border-slate-800/50">
-                                        <td className="px-6 py-4 font-mono text-indigo-400 text-xs">{s.id}</td>
-                                        <td className="px-6 py-4 font-bold">{s.carrier}</td>
-                                        <td className="px-6 py-4 text-xs font-bold text-slate-500">{s.origin} → {s.dest}</td>
-                                        <td className="px-6 py-4 font-black text-amber-500">AED {s.cost.toLocaleString()}</td>
-                                        <td className="px-6 py-4"><Badge status={s.status} /></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            );
-        }
+/* Outlook import — reads recent inbox messages via Graph (Mail.Read) and lets you convert to tickets */
+async function importOutlook(){
+  if(!ONLINE){ toast('Sign in with Microsoft first','err'); return; }
+  modal('Import from Outlook','<div class="empty">Loading recent emails…</div>',null,true);
+  try{
+    const token=await getToken(['Mail.Read','User.Read']);
+    const res=await fetch("https://graph.microsoft.com/v1.0/me/messages?$top=25&$select=subject,from,receivedDateTime,bodyPreview&$orderby=receivedDateTime desc",{headers:{Authorization:'Bearer '+token}});
+    if(!res.ok) throw new Error('Graph '+res.status);
+    const data=await res.json(); const msgs=data.value||[];
+    document.getElementById('modalCard').querySelector('.modal-body').innerHTML = msgs.length? `<div class="p-sub" style="margin-bottom:10px">Select an email to convert into a ticket:</div>`+
+      msgs.map((m,i)=>`<div class="bar-row" style="align-items:flex-start"><div style="flex:1"><b>${esc(m.subject||'(no subject)')}</b><div class="muted" style="font-size:12px">${esc((m.from&&m.from.emailAddress&&m.from.emailAddress.name)||'')} · ${fmtDate(m.receivedDateTime)}</div><div class="note-cell" style="margin-top:3px">${esc((m.bodyPreview||'').slice(0,140))}</div></div>
+      <button class="mini-btn" onclick='ticketFromMail(${JSON.stringify({s:m.subject,n:(m.from&&m.from.emailAddress&&m.from.emailAddress.name)||"",b:(m.bodyPreview||"").slice(0,500),d:m.receivedDateTime}).replace(/'/g,"&#39;")})'>→ Ticket</button></div>`).join('')
+      : '<div class="empty">No recent emails found.</div>';
+  }catch(e){ console.warn(e); document.getElementById('modalCard').querySelector('.modal-body').innerHTML='<div class="empty">Could not read mailbox.<br><small>Ensure the Azure app has delegated <b>Mail.Read</b> consent.</small></div>'; }
+}
+function ticketFromMail(m){
+  if(!requireEdit())return;
+  state.tickets.push({id:uid(),code:nextTicketCode(),serial:'',client:m.n||m.s,date:(m.d||'').slice(0,10),issue:m.b||m.s,update:'[Imported from Outlook]',statusCoreV:'OPEN',statusOxe:'OPEN',reportedBy:'',assistedBy:'',remarks:''});
+  persist(); closeModal(); go('tickets'); toast('Ticket created from email','ok');
+}
 
-        /* ─── Ticket Module ─── */
-        function TicketModule({ data, updateData, role }) {
-            return (
-                <div className="space-y-6">
-                    <div className="glass p-6 rounded-3xl border-sky-500/20 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-500">
-                                <Icon name="sync" size={24} className="animate-pulse-soft" />
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-sky-400">Outlook Integration Active</h4>
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Polling Mail.Read & Tasks.ReadWrite every 5 mins</p>
-                            </div>
-                        </div>
-                        <button className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all">Manual Refresh</button>
-                    </div>
+/* ============================================================
+   VIEW: CUSTOMER REVIEWS  (Google integration)
+============================================================ */
+function renderReviews(){
+  const r=state.reviews;
+  const avg=r.length?(r.reduce((a,b)=>a+(+b.rating||0),0)/r.length).toFixed(1):'—';
+  const stars=n=>'★★★★★☆☆☆☆☆'.slice(5-Math.round(n),10-Math.round(n));
+  document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
+  <div class="view active">
+    <div class="page-head">
+      <div><div class="page-title">Customer Reviews</div><div class="page-sub">Post-delivery feedback · Google integration</div></div>
+      <div class="toolbar">
+        <button class="btn" onclick="connectGoogle()">${googleToken?'✅ Google connected':'🔗 Connect Google'}</button>
+        ${googleToken&&REVIEWS_CONFIG.sheetId?`<button class="btn" onclick="importGoogleReviews()">⬇ Import sheet</button>`:''}
+        ${canEdit()?`<button class="btn primary" onclick="openReview()">＋ Review</button>`:''}
+      </div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi gold"><div class="k-label">Avg rating</div><div class="k-val">${avg} ★</div><div class="k-sub">${r.length} reviews</div></div>
+      <div class="kpi green"><div class="k-label">5-star</div><div class="k-val">${r.filter(x=>+x.rating===5).length}</div></div>
+      <div class="kpi red"><div class="k-label">≤3-star</div><div class="k-val">${r.filter(x=>+x.rating<=3).length}</div><div class="k-sub">needs attention</div></div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Client</th><th>Rating</th><th>Source</th><th>Comment</th><th>Delivery</th><th>⚙</th></tr></thead><tbody>
+      ${r.length?r.map(x=>`<tr><td>${fmtDate(x.date)}</td><td><b>${esc(x.client)}</b></td><td style="color:#f59e0b;font-size:15px">${stars(x.rating)}</td><td><span class="tag">${esc(x.source||'Manual')}</span></td><td class="note-cell">${esc(x.comment||'')}</td><td>${esc(x.deliveryId||'')}</td>
+      <td class="actions">${canEdit()?`<button class="mini-btn" onclick="openReview('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delReview('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="7"><div class="empty">No reviews yet.</div></td></tr>`}
+    </tbody></table></div>
+    <div class="panel" style="margin-top:14px"><h3>ℹ️ Google integration</h3><div class="p-sub">Connect a Google account to pull reviews from a shared Google Sheet (set <code>REVIEWS_CONFIG.sheetId</code>). Without a sheet ID, add reviews manually. This v1.0 uses read-only Google Sheets access.</div></div>
+  </div>`);
+}
+function openReview(id){ if(!requireEdit())return; const x=id?state.reviews.find(r=>r.id===id):{id:uid(),date:new Date().toISOString().slice(0,10),rating:5,source:'Manual'};
+  modal(id?'Edit review':'New review',`<div class="form-grid">
+    <div class="fld"><label>Date</label><input type="date" name="date" value="${esc(x.date||'')}"></div>
+    <div class="fld"><label>Client</label><input name="client" value="${esc(x.client||'')}"></div>
+    <div class="fld"><label>Rating (1-5)</label><select name="rating">${[5,4,3,2,1].map(n=>`<option ${+x.rating===n?'selected':''}>${n}</option>`).join('')}</select></div>
+    <div class="fld"><label>Source</label><select name="source">${['Google','Manual','Email','WhatsApp'].map(s=>`<option ${x.source===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="fld"><label>Delivery Note ID</label><input name="deliveryId" value="${esc(x.deliveryId||'')}"></div>
+    <div class="fld full"><label>Comment</label><textarea name="comment" rows="3">${esc(x.comment||'')}</textarea></div></div>`,
+    ()=>{const f=getForm();f.rating=Number(f.rating)||5; if(id)Object.assign(x,f);else state.reviews.unshift({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+}
+function delReview(id){ if(!canDelete())return; state.reviews=state.reviews.filter(x=>x.id!==id); persist(); }
+function connectGoogle(){
+  if(typeof google==='undefined'||!google.accounts){ toast('Google library not loaded','err'); return; }
+  try{
+    const tc=google.accounts.oauth2.initTokenClient({client_id:REVIEWS_CONFIG.clientId,scope:REVIEWS_CONFIG.scope,
+      callback:(resp)=>{ if(resp.access_token){ googleToken=resp.access_token; toast('Google connected','ok'); renderActive(); } }});
+    tc.requestAccessToken();
+  }catch(e){ toast('Google sign-in failed — check client ID/origin','err'); }
+}
+async function importGoogleReviews(){
+  if(!googleToken||!REVIEWS_CONFIG.sheetId){ toast('Connect Google & set sheetId','err'); return; }
+  try{
+    const res=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${REVIEWS_CONFIG.sheetId}/values/A2:F`,{headers:{Authorization:'Bearer '+googleToken}});
+    const data=await res.json(); (data.values||[]).forEach(row=>{ state.reviews.push({id:uid(),date:row[0]||'',client:row[1]||'',rating:Number(row[2])||5,source:'Google',comment:row[3]||'',deliveryId:row[4]||''}); });
+    persist(); toast('Imported '+((data.values||[]).length)+' reviews','ok');
+  }catch(e){ toast('Import failed','err'); }
+}
 
-                    <div className="glass rounded-3xl overflow-hidden">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-900/50">
-                                <tr>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Ticket</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Priority</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Source</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Assignee</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data.tickets.map(t => (
-                                    <tr key={t.id} className="border-b border-slate-800/50">
-                                        <td className="px-6 py-4">
-                                            <div className="text-sm font-bold truncate max-w-[200px]">{t.subject}</div>
-                                            <div className="text-[10px] text-slate-500 font-mono">{t.id}</div>
-                                        </td>
-                                        <td className="px-6 py-4"><Badge status={t.priority} /></td>
-                                        <td className="px-6 py-4 text-[10px] font-black text-indigo-400 uppercase tracking-widest">{t.source}</td>
-                                        <td className="px-6 py-4 text-xs font-bold text-slate-500">{t.assignee}</td>
-                                        <td className="px-6 py-4"><Badge status={t.status} /></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            );
-        }
+/* ============================================================
+   MODAL + FORM HELPERS
+============================================================ */
+let _onSave=null;
+function modal(title,bodyHtml,onSave,noFooter){
+  _onSave=onSave;
+  document.getElementById('modalCard').innerHTML=`
+    <div class="modal-head"><h2>${esc(title)}</h2><button class="x-btn" onclick="closeModal()">×</button></div>
+    <div class="modal-body">${bodyHtml}</div>
+    ${noFooter?'':`<div class="modal-foot"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveModal()">Save</button></div>`}`;
+  document.getElementById('modalBg').classList.add('open');
+}
+function closeModal(){ document.getElementById('modalBg').classList.remove('open'); _onSave=null; }
+function saveModal(){ if(_onSave) _onSave(); }
+function getForm(){ const o={}; document.querySelectorAll('#modalCard [name]').forEach(el=>{ o[el.name]=el.value; }); return o; }
+document.getElementById('modalBg').addEventListener('click',e=>{ if(e.target.id==='modalBg') closeModal(); });
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+/* ============================================================
+   EXPORT + SETUP
+============================================================ */
+function exportCSV(which){
+  const map={deliveries:state.deliveries,costing:state.costing,tickets:state.tickets};
+  const rows=map[which]||[]; if(!rows.length){ toast('Nothing to export'); return; }
+  const keys=Object.keys(rows[0]); const csv=[keys.join(',')].concat(rows.map(r=>keys.map(k=>`"${String(r[k]==null?'':r[k]).replace(/"/g,'""')}"`).join(','))).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='oxefit-'+which+'.csv'; a.click();
+}
+function showSetup(){
+  modal('Setup — Azure & OneDrive sync',`<div class="setup-box">1. Azure Portal → App registrations → your CoreV app
+   (or create one: "Accounts in any org directory")
+2. Authentication → add a Single-page application (SPA)
+   redirect URI = the URL where you host THIS file
+   e.g. https://yourname.github.io/delivery_tracker.html
+3. API permissions → Microsoft Graph → Delegated:
+   Files.ReadWrite.All · User.Read · Mail.Read  → Grant consent
+4. Copy the Application (client) ID into
+   ONEDRIVE_CONFIG.clientId near the top of the script
+5. Host the file (GitHub Pages / SharePoint / web server)
+   and share it with the team. Everyone signs in with their
+   @core-velocity.com account; the JSON database lives at
+   ${ONEDRIVE_CONFIG.filePath} in the shared OneDrive and
+   auto-syncs across all team members.
+
+Roles are fixed in code:
+   Ahmed = Admin (full control + delete)
+   Charlie, Prem, Gladys, Sami, Kamal = Operational (add/modify)
+   Any other authorized account = read-only Viewer</div>`,null);
+}
+
+/* ─────────── START ─────────── */
+boot();
+</script>
 </body>
 </html>
