@@ -1,634 +1,842 @@
-import React from 'react';
 
-// ── CONFIG ──────────────────────────────────────────────────────────────────
-const CLIENT_ID = 'cd1b7f5f-5ff9-4066-ab4f-06f270a94fcb';
-const TENANT = 'core-velocity.com';
-const OD_FILE = 'uae_ops_data_v2.json';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OxeFit UAE Operations Platform v2.0</title>
+    <!-- CDNs -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 
-const USERS = [
-  { id: 1, name: 'Ahmed Al-Rashidi', role: 'admin', initials: 'AA', email: 'ahmed@core-velocity.com', dept: 'Management' },
-  { id: 2, name: 'Charlie Thompson', role: 'operational', initials: 'CT', email: 'charlie@core-velocity.com', dept: 'Operations' },
-  { id: 3, name: 'Prem Kumar', role: 'operational', initials: 'PK', email: 'prem@core-velocity.com', dept: 'Logistics' },
-  { id: 4, name: 'Gladys Reyes', role: 'operational', initials: 'GR', email: 'gladys@core-velocity.com', dept: 'Support' },
-  { id: 5, name: 'Sami Al-Harbi', role: 'operational', initials: 'SA', email: 'sami@core-velocity.com', dept: 'Field Ops' },
-  { id: 6, name: 'Kamal Nasser', role: 'operational', initials: 'KN', email: 'kamal@core-velocity.com', dept: 'Warehouse' },
-];
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #04091a; color: #e2eeff; }
+        .serif { font-family: 'Playfair Display', serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #060e22; }
+        ::-webkit-scrollbar-thumb { background: #1a3360; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #2a4f90; }
+        
+        .glass { background: rgba(12, 24, 48, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(26, 51, 96, 0.5); }
+        .sidebar-item-active { background: rgba(14, 165, 233, 0.12); color: #0ea5e9; border-left: 3px solid #0ea5e9; }
+        
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-pulse-soft { animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-const DELIVERIES = [
-  { id: 'DN-2024-001', receiver: 'Majid Al Futtaim Fitness', contact: '+971 50 123 4567', email: 'ops@maf.ae', address: 'Mall of Emirates, Level 2, Dubai', closedDate: '2025-04-10', deliveryDate: '2025-04-12', deliveryTime: '10:00', status: 'Delivered', model: 'XS Pro', salesPerson: 'Sami Al-Harbi', salesCoach: 'Prem Kumar', warrantyStart: '2025-04-12', warrantyEnd: '2026-04-12', warrantyStatus: 'Active', notes: 'White glove setup requested', successCall: 'Done', flooring: 'Rubber Mat', serial: 'OXF-XSP-9421', reviewForm: 'Submitted', freeSession: 'Scheduled' },
-  { id: 'DN-2024-002', receiver: 'Hilton Dubai Palm', contact: '+971 4 567 8901', email: 'fitness@hiltonpalm.ae', address: 'Palm Jumeirah, Dubai', closedDate: '2025-04-14', deliveryDate: '2025-04-16', deliveryTime: '08:30', status: 'Delivered', model: 'XS Elite', salesPerson: 'Charlie Thompson', salesCoach: 'Prem Kumar', warrantyStart: '2025-04-16', warrantyEnd: '2027-04-16', warrantyStatus: 'Active', notes: '2-year extended warranty package', successCall: 'Pending', flooring: 'Hardwood', serial: 'OXF-XSE-7832', reviewForm: 'Pending', freeSession: 'Done' },
-  { id: 'DN-2024-003', receiver: 'GEMS Education HQ', contact: '+971 50 987 6543', email: 'admin@gemsedu.com', address: 'Dubai Knowledge Park, UAE', closedDate: '2025-04-15', deliveryDate: '2025-04-17', deliveryTime: '14:00', status: 'In Transit', model: 'XS Core', salesPerson: 'Gladys Reyes', salesCoach: 'Sami Al-Harbi', warrantyStart: '', warrantyEnd: '', warrantyStatus: 'Pending', notes: 'Access code required for loading dock', successCall: 'Not Started', flooring: 'Commercial Carpet', serial: 'OXF-XSC-3310', reviewForm: 'Not Sent', freeSession: 'Not Scheduled' },
-  { id: 'DN-2024-004', receiver: 'Abu Dhabi Sports Council', contact: '+971 2 444 5678', email: 'procurement@adsc.ae', address: 'Yas Island, Abu Dhabi', closedDate: '2025-04-08', deliveryDate: '2025-04-20', deliveryTime: '09:00', status: 'Scheduled', model: 'XS Pro Bundle x3', salesPerson: 'Kamal Nasser', salesCoach: 'Charlie Thompson', warrantyStart: '', warrantyEnd: '', warrantyStatus: 'Pending', notes: 'Bulk order - 3 units, installation by certified tech', successCall: 'Not Started', flooring: 'Sports Flooring', serial: 'OXF-BUNDLE-001', reviewForm: 'Not Sent', freeSession: 'Not Scheduled' },
-  { id: 'DN-2024-005', receiver: 'Armani Hotel Dubai', contact: '+971 4 888 3333', email: 'spa@armanihotel.ae', address: 'Burj Khalifa, Level 8, Dubai', closedDate: '2025-04-01', deliveryDate: '2025-04-03', deliveryTime: '06:00', status: 'Delivered', model: 'XS Elite', salesPerson: 'Prem Kumar', salesCoach: 'Gladys Reyes', warrantyStart: '2025-04-03', warrantyEnd: '2026-04-03', warrantyStatus: 'Active', notes: 'Early morning delivery only', successCall: 'Done', flooring: 'Marble (pad provided)', serial: 'OXF-XSE-4499', reviewForm: 'Submitted', freeSession: 'Done' },
-  { id: 'DN-2024-006', receiver: 'Sharjah Airport Free Zone', contact: '+971 6 511 2000', email: 'hr@saif.ae', address: 'SAIF Zone, Sharjah', closedDate: '2025-04-18', deliveryDate: '2025-04-22', deliveryTime: '11:00', status: 'Scheduled', model: 'XS Core', salesPerson: 'Sami Al-Harbi', salesCoach: 'Kamal Nasser', warrantyStart: '', warrantyEnd: '', warrantyStatus: 'Pending', notes: 'Security clearance needed 48hrs prior', successCall: 'Not Started', flooring: 'Rubber Mat', serial: 'OXF-XSC-5521', reviewForm: 'Not Sent', freeSession: 'Not Scheduled' },
-  { id: 'DN-2024-007', receiver: 'Mediclinic City Hospital', contact: '+971 4 435 9999', email: 'wellness@mediclinic.ae', address: 'Dubai Healthcare City', closedDate: '2025-03-28', deliveryDate: '2025-03-30', deliveryTime: '07:00', status: 'Delivered', model: 'XS Rehab', salesPerson: 'Charlie Thompson', salesCoach: 'Prem Kumar', warrantyStart: '2025-03-30', warrantyEnd: '2028-03-30', warrantyStatus: 'Active', notes: '3-year clinical warranty applied', successCall: 'Done', flooring: 'Medical Grade', serial: 'OXF-XSR-1102', reviewForm: 'Submitted', freeSession: 'N/A' },
-];
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
 
-const PARTS = [
-  { sku: 'OXF-BLT-001', name: 'Drive Belt 65"', category: 'Mechanical', qty: 12, reorder: 5, unit: 'AED 185', location: 'Shelf A1', lastUpdated: '2025-04-10' },
-  { sku: 'OXF-MBD-002', name: 'Main PCB Board - XS Pro', category: 'Electronics', qty: 4, reorder: 3, unit: 'AED 1,240', location: 'Shelf B3', lastUpdated: '2025-04-08' },
-  { sku: 'OXF-MTR-003', name: 'Drive Motor Assembly', category: 'Mechanical', qty: 6, reorder: 4, unit: 'AED 890', location: 'Shelf A2', lastUpdated: '2025-04-12' },
-  { sku: 'OXF-PWR-004', name: 'Power Supply Unit 250W', category: 'Electronics', qty: 9, reorder: 5, unit: 'AED 420', location: 'Shelf B1', lastUpdated: '2025-04-09' },
-  { sku: 'OXF-SCR-005', name: '21.5" Touchscreen Assembly', category: 'Display', qty: 3, reorder: 4, unit: 'AED 2,100', location: 'Shelf C1', lastUpdated: '2025-04-11' },
-  { sku: 'OXF-FRM-006', name: 'Rear Frame Bracket Kit', category: 'Structural', qty: 15, reorder: 6, unit: 'AED 210', location: 'Shelf D2', lastUpdated: '2025-04-07' },
-  { sku: 'OXF-SPK-007', name: 'Speaker Module Pair', category: 'Audio', qty: 8, reorder: 4, unit: 'AED 340', location: 'Shelf B4', lastUpdated: '2025-04-13' },
-  { sku: 'OXF-CAM-008', name: 'AI Camera Module', category: 'Electronics', qty: 5, reorder: 5, unit: 'AED 780', location: 'Shelf C2', lastUpdated: '2025-04-06' },
-  { sku: 'OXF-HND-009', name: 'Handlebar Assembly Complete', category: 'Mechanical', qty: 7, reorder: 4, unit: 'AED 650', location: 'Shelf A3', lastUpdated: '2025-04-14' },
-  { sku: 'OXF-PDL-010', name: 'Pedal Set w/ Bearings', category: 'Mechanical', qty: 11, reorder: 5, unit: 'AED 295', location: 'Shelf A4', lastUpdated: '2025-04-10' },
-];
+        /* ─── MSAL Configuration ─── */
+        const msalConfig = {
+            auth: {
+                clientId: "cd1b7f5f-5ff9-4066-ab4f-06f270a94fcb",
+                authority: "https://login.microsoftonline.com/core-velocity.com",
+                redirectUri: window.location.origin + window.location.pathname,
+                navigateToLoginRequestUrl: true
+            },
+            cache: {
+                cacheLocation: "sessionStorage",
+                storeAuthStateInCookie: false,
+            }
+        };
 
-const SHIPPING = [
-  { ref: 'SHP-2025-040', date: '2025-04-12', origin: 'Miami, USA', destination: 'Jebel Ali FZ', carrier: 'Maersk', weight: '420 kg', units: 3, freight: 'AED 8,400', customs: 'AED 1,260', handling: 'AED 580', total: 'AED 10,240', status: 'Cleared', eta: '2025-04-28' },
-  { ref: 'SHP-2025-038', date: '2025-04-08', origin: 'Miami, USA', destination: 'Jebel Ali FZ', carrier: 'MSC', weight: '140 kg', units: 1, freight: 'AED 3,200', customs: 'AED 480', handling: 'AED 210', total: 'AED 3,890', status: 'In Transit', eta: '2025-04-24' },
-  { ref: 'SHP-2025-035', date: '2025-03-30', origin: 'Miami, USA', destination: 'Abu Dhabi Port', carrier: 'Emirates SkyCargo', weight: '85 kg', units: 1, freight: 'AED 4,100', customs: 'AED 615', handling: 'AED 180', total: 'AED 4,895', status: 'Delivered', eta: '2025-04-05' },
-  { ref: 'SHP-2025-031', date: '2025-03-18', origin: 'Shenzhen, CN', destination: 'Jebel Ali FZ', carrier: 'COSCO', weight: '220 kg', units: 8, freight: 'AED 2,900', customs: 'AED 435', handling: 'AED 320', total: 'AED 3,655', status: 'Delivered', eta: '2025-04-02' },
-  { ref: 'SHP-2025-028', date: '2025-03-10', origin: 'Miami, USA', destination: 'Jebel Ali FZ', carrier: 'Maersk', weight: '560 kg', units: 4, freight: 'AED 11,200', customs: 'AED 1,680', handling: 'AED 720', total: 'AED 13,600', status: 'Delivered', eta: '2025-03-28' },
-  { ref: 'SHP-2025-022', date: '2025-02-20', origin: 'Miami, USA', destination: 'Sharjah Airport', carrier: 'Emirates SkyCargo', weight: '95 kg', units: 1, freight: 'AED 4,800', customs: 'AED 720', handling: 'AED 200', total: 'AED 5,720', status: 'Delivered', eta: '2025-02-24' },
-];
+        const msalInstance = new msal.PublicClientApplication(msalConfig);
 
-const TICKETS = [
-  { id: 'TKT-0042', created: '2025-04-14', customer: 'Hilton Dubai Palm', model: 'XS Elite', issue: 'Screen flickering on startup', oxefitStatus: 'Under Review', corevStatus: 'Investigating', priority: 'High', assignee: 'Prem Kumar', outlookThread: 'RE: OXF Ticket #0042 - Screen Issue', dueDate: '2025-04-17', resolution: '' },
-  { id: 'TKT-0041', created: '2025-04-12', customer: 'Mediclinic City Hospital', model: 'XS Rehab', issue: 'AI coach not tracking reps correctly', oxefitStatus: 'Firmware Update Ready', corevStatus: 'Pending Customer Window', priority: 'Medium', assignee: 'Gladys Reyes', outlookThread: 'RE: OXF Ticket #0041 - Rep Tracking', dueDate: '2025-04-19', resolution: '' },
-  { id: 'TKT-0039', created: '2025-04-09', customer: 'Armani Hotel Dubai', model: 'XS Elite', issue: 'Bluetooth pairing failure', oxefitStatus: 'Resolved', corevStatus: 'Closed', priority: 'Low', assignee: 'Sami Al-Harbi', outlookThread: 'RE: OXF Ticket #0039 - BT Pairing', dueDate: '2025-04-11', resolution: 'Reset Bluetooth stack, confirmed pairing with 3 devices.' },
-  { id: 'TKT-0038', created: '2025-04-07', customer: 'GEMS Education HQ', model: 'XS Core', issue: 'Drive belt slipping at high resistance', oxefitStatus: 'Parts Dispatched', corevStatus: 'Awaiting Delivery', priority: 'High', assignee: 'Kamal Nasser', outlookThread: 'RE: OXF Ticket #0038 - Belt Issue', dueDate: '2025-04-15', resolution: '' },
-  { id: 'TKT-0036', created: '2025-04-03', customer: 'Majid Al Futtaim Fitness', model: 'XS Pro', issue: 'Power supply unit overheating', oxefitStatus: 'Unit Replacement Approved', corevStatus: 'Scheduling Visit', priority: 'Critical', assignee: 'Charlie Thompson', outlookThread: 'RE: OXF Ticket #0036 - PSU Overheat', dueDate: '2025-04-08', resolution: '' },
-  { id: 'TKT-0033', created: '2025-03-28', customer: 'Abu Dhabi Sports Council', model: 'XS Pro Bundle', issue: 'Software calibration required post-install', oxefitStatus: 'Resolved', corevStatus: 'Closed', priority: 'Low', assignee: 'Prem Kumar', outlookThread: 'RE: OXF Ticket #0033 - Calibration', dueDate: '2025-03-31', resolution: 'Remote calibration completed via OxeFit portal. Verified by customer.' },
-  { id: 'TKT-0031', created: '2025-03-22', customer: 'Sharjah Airport Free Zone', model: 'XS Core', issue: 'User profile sync failure', oxefitStatus: 'In Progress', corevStatus: 'Monitoring', priority: 'Medium', assignee: 'Gladys Reyes', outlookThread: 'RE: OXF Ticket #0031 - Profile Sync', dueDate: '2025-04-20', resolution: '' },
-];
+        /* ─── RBAC Configuration ─── */
+        const ADMIN_EMAILS = ["ahmed@core-velocity.com"];
+        const OPS_EMAILS = [
+            "charlie@core-velocity.com", 
+            "prem@core-velocity.com", 
+            "gladys@core-velocity.com", 
+            "sami@core-velocity.com", 
+            "kamal@core-velocity.com"
+        ];
 
-// ── ICONS (inline SVG) ────────────────────────────────────────────────────────
-const Ico = ({ d, size = 18, stroke = 'currentColor', fill = 'none' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d={d} />
-  </svg>
-);
+        /* ─── Colors ─── */
+        const T = {
+            bg0: '#04091a', bg1: '#08112b', bg2: '#0d1c3d', bg3: '#122350',
+            border: '#1a3360', borderHover: '#2a4f90',
+            primary: '#0ea5e9', primaryDark: '#0284c7', gold: '#f59e0b',
+            success: '#10b981', warn: '#f59e0b', danger: '#ef4444', purple: '#8b5cf6',
+            textPrimary: '#e2eeff', textSec: '#7da0cc', textMuted: '#3d6091'
+        };
 
-const Icons = {
-  dashboard: () => <Ico d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />,
-  delivery: () => <Ico d="M1 3h15v13H1zM16 8l5 3v5h-5zM5.5 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM18.5 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" />,
-  parts: () => <Ico d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />,
-  shipping: () => <Ico d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />,
-  ticket: () => <Ico d="M15 5v2M15 11v2M15 17v2M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7a2 2 0 0 1 2-2z" />,
-  sync: () => <Ico d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />,
-  cloud: () => <Ico d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />,
-  chevRight: () => <Ico d="M9 18l6-6-6-6" />,
-  chevLeft: () => <Ico d="M15 18l-6-6 6-6" />,
-  logout: () => <Ico d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />,
-  microsoft: () => (
-    <svg width="20" height="20" viewBox="0 0 21 21">
-      <rect x="1" y="1" width="9" height="9" fill="#f25022" />
-      <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
-      <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
-      <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
-    </svg>
-  ),
-  alert: () => <Ico d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />,
-  check: () => <Ico d="M20 6L9 17l-5-5" />,
-  clock: () => <Ico d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 6v6l4 2" />,
-  mail: () => <Ico d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6" />,
-  filter: () => <Ico d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />,
-  search: () => <Ico d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />,
-  user: () => <Ico d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />,
-  shield: () => <Ico d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
-  trending: () => <Ico d="M23 6l-9.5 9.5-5-5L1 18M17 6h6v6" />,
-  box: () => <Ico d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM3.27 6.96L12 12.01l8.73-5.05M12 22.08V12" />,
-  xCircle: () => <Ico d="M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0zM15 9l-6 6M9 9l6 6" />,
-  wifi: () => <Ico d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01" />,
-};
+        /* ─── Seed Data ─── */
+        const SEED = {
+            deliveries: [
+                { 
+                    id: 'DN-2401', 
+                    orderDate: '2024-05-10', 
+                    customer: 'Fitness First UAE', 
+                    status: 'Delivered', 
+                    units: 4, 
+                    special: 'Installation required', 
+                    estDelivery: '2024-05-20', 
+                    actDelivery: '2024-05-19',
+                    receiverName: 'John Smith',
+                    contactNumber: '+971 50 123 4567',
+                    email: 'john@fitnessfirst.ae',
+                    address: 'JBR, Dubai',
+                    deliveryTime: '10:00 AM',
+                    model: 'XS1',
+                    salesPerson: 'Ahmed',
+                    salesCoach: 'Charlie',
+                    warrantyStart: '2024-05-19',
+                    warrantyPeriod: 12,
+                    warrantyEnd: '2025-05-19',
+                    notes: 'Customer very happy with the demo.',
+                    customerSuccessCall: 'Done',
+                    salesCoachDelivered: 'Yes',
+                    offeredFlooring: 'YES',
+                    serialNo: 'OX-XS1-001',
+                    sharedReviewForm: 'Yes',
+                    freeSession: 'Scheduled'
+                }
+            ],
+            spares: [
+                { id: 'SP-001', partName: 'Resistance Band Set', partNo: 'OXF-RB-01', category: 'Accessories', stock: 24, minStock: 10, location: 'Dubai WH', updated: '2024-06-01' },
+                { id: 'SP-002', partName: 'Force Sensor Module', partNo: 'OXF-FS-02', category: 'Electronics', stock: 6, minStock: 8, location: 'Dubai WH', updated: '2024-05-18' }
+            ],
+            shipping: [
+                { id: 'SH-001', date: '2024-05-12', carrier: 'Aramex UAE', origin: 'Chicago, US', dest: 'Dubai, UAE', weight: '340 kg', cost: 4200, status: 'Cleared', notes: 'Main shipment Q2' }
+            ],
+            tickets: [
+                { id: 'TK-001', subject: 'Display flickering - Fitness First JBR', source: 'Outlook', priority: 'High', status: 'Open', assignee: 'Prem', created: '2024-06-04', due: '2024-06-06' }
+            ]
+        };
 
-// ── HELPERS ────────────────────────────────────────────────────────────────
-const statusColor = (s) => {
-  const m = { Delivered: '#10b981', 'In Transit': '#3b82f6', Scheduled: '#f59e0b', Cancelled: '#ef4444', Cleared: '#10b981', 'In Progress': '#3b82f6', Resolved: '#10b981', Closed: '#6b7280', Critical: '#ef4444', High: '#f59e0b', Medium: '#3b82f6', Low: '#10b981', Active: '#10b981', Pending: '#f59e0b', 'Under Review': '#a855f7', Investigating: '#a855f7', 'Awaiting Delivery': '#f59e0b', 'Scheduling Visit': '#f59e0b', Monitoring: '#3b82f6' };
-  return m[s] || '#6b7280';
-};
+        /* ─── Components ─── */
 
-const Badge = ({ label }) => (
-  <span style={{ background: statusColor(label) + '22', color: statusColor(label), border: `1px solid ${statusColor(label)}44`, borderRadius: 6, padding: '2px 10px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', letterSpacing: 0.4 }}>
-    {label}
-  </span>
-);
-
-const StatCard = ({ label, value, sub, icon: IconComp, color, trend }) => (
-  <div style={{ background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 14, padding: '22px 24px', position: 'relative', overflow: 'hidden', flex: 1, minWidth: 180 }}>
-    <div style={{ position: 'absolute', top: 0, right: 0, width: 80, height: 80, background: color + '12', borderRadius: '0 14px 0 100%' }} />
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>
-        <IconComp />
-      </div>
-      <span style={{ color: '#64748b', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</span>
-    </div>
-    <div style={{ fontSize: 32, fontWeight: 800, color: '#f1f5f9', letterSpacing: -1 }}>{value}</div>
-    <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>{sub}</div>
-    {trend && <div style={{ position: 'absolute', right: 20, bottom: 18, color, fontSize: 11, fontWeight: 700 }}>{trend}</div>}
-  </div>
-);
-
-// ── MODULES ───────────────────────────────────────────────────────────────
-function Dashboard({ user }) {
-  const totalDel = DELIVERIES.length;
-  const doneDel = DELIVERIES.filter(d => d.status === 'Delivered').length;
-  const openTkts = TICKETS.filter(t => t.corevStatus !== 'Closed').length;
-  const lowStock = PARTS.filter(p => p.qty <= p.reorder).length;
-  const barData = [
-    { m: 'Jan', v: 4 }, { m: 'Feb', v: 7 }, { m: 'Mar', v: 5 }, { m: 'Apr', v: 9 }, { m: 'May', v: 3 }, { m: 'Jun', v: 6 },
-  ];
-  const maxV = 10;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <StatCard label="Total Deliveries" value={totalDel} sub={`${doneDel} completed`} icon={Icons.delivery} color="#3b82f6" trend="+2 this week" />
-        <StatCard label="Open Tickets" value={openTkts} sub="Requires action" icon={Icons.ticket} color="#f59e0b" trend="1 Critical" />
-        <StatCard label="Parts SKUs" value={PARTS.length} sub={`${lowStock} low stock`} icon={Icons.parts} color="#10b981" trend={lowStock > 0 ? `${lowStock} reorder` : 'All stocked'} />
-        <StatCard label="Shipments" value={SHIPPING.length} sub="Active & historical" icon={Icons.shipping} color="#a855f7" trend="2 in transit" />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
-        <div style={{ background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 14, padding: 24 }}>
-          <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 20 }}>Monthly Deliveries</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 140 }}>
-            {barData.map(b => (
-              <div key={b.m} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <div style={{ fontSize: 11, color: '#475569', fontWeight: 700 }}>{b.v}</div>
-                <div style={{ width: '100%', height: (b.v / maxV) * 110, background: 'linear-gradient(180deg, #3b82f6, #06b6d4)', borderRadius: '6px 6px 0 0', transition: 'height 0.6s ease', position: 'relative' }}>
-                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.08)', borderRadius: '6px 6px 0 0' }} />
-                </div>
-                <div style={{ fontSize: 10, color: '#475569' }}>{b.m}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 14, padding: 24 }}>
-          <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 16 }}>Ticket Priority Mix</div>
-          {['Critical', 'High', 'Medium', 'Low'].map(p => {
-            const cnt = TICKETS.filter(t => t.priority === p).length;
-            const pct = Math.round((cnt / TICKETS.length) * 100);
+        const Icon = ({ name, size = 18, color = 'currentColor', className = "" }) => {
+            const paths = {
+                dashboard: "M3 3h7v7H3V3zm11 0h7v7h-7V3zm-11 11h7v7H3v-7zm11 0h7v7h-7v-7z",
+                delivery: "M1 3h15v13H1V3zm15 5h4l3 3v5h-7V8z",
+                spare: "M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z",
+                shipping: "M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3M9 11h14v10H9V11zM12 17v-6l3 2 3-2v6",
+                ticket: "M2 9a3 3 0 010-6h20a3 3 0 010 6M2 15a3 3 0 000 6h20a3 3 0 000-6M4 12h16",
+                logout: "M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9",
+                plus: "M12 5v14M5 12h14",
+                edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
+                trash: "M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6",
+                sync: "M21.5 2v6h-6M2.5 22v-6h6M22 11.5A10 10 0 003.2 7.2M2 12.5a10 10 0 0018.8 4.2",
+                check: "M20 6L9 17l-5-5",
+                user: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"
+            };
             return (
-              <div key={p} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#94a3b8', marginBottom: 5 }}>
-                  <span style={{ color: statusColor(p), fontWeight: 700 }}>{p}</span>
-                  <span>{cnt} ({pct}%)</span>
-                </div>
-                <div style={{ height: 6, background: '#1e293b', borderRadius: 4 }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: statusColor(p), borderRadius: 4, transition: 'width 0.8s ease' }} />
-                </div>
-              </div>
+                <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={paths[name]} />
+                </svg>
             );
-          })}
-        </div>
-      </div>
+        };
 
-      <div style={{ background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 14, padding: 24 }}>
-        <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 16 }}>Recent Activity</div>
-        {[
-          { color: '#10b981', text: 'Delivery DN-2024-005 confirmed delivered to Armani Hotel Dubai', time: '2h ago' },
-          { color: '#f59e0b', text: 'Ticket TKT-0036 escalated to Critical - PSU overheating at Majid Al Futtaim', time: '4h ago' },
-          { color: '#3b82f6', text: 'Shipment SHP-2025-038 departed Miami - ETA April 24', time: '6h ago' },
-          { color: '#a855f7', text: 'OneDrive sync completed - uae_ops_data_v2.json updated', time: '1d ago' },
-        ].map((a, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: i < 3 ? '1px solid #1e293b' : 'none' }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: a.color, marginTop: 5, flexShrink: 0 }} />
-            <div style={{ flex: 1, fontSize: 13, color: '#cbd5e1' }}>{a.text}</div>
-            <div style={{ fontSize: 11, color: '#475569', whiteSpace: 'nowrap' }}>{a.time}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+        const Badge = ({ label, status }) => {
+            const styles = {
+                'Delivered': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                'In Transit': 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+                'Pending': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+                'Processing': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+                'Cleared': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                'Open': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+                'High': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+                'Medium': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+                'Low': 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+            };
+            return (
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border ${styles[status] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
+                    {label || status}
+                </span>
+            );
+        };
 
-function DeliveryTracking({ user }) {
-  const [search, setSearch] = React.useState('');
-  const [filter, setFilter] = React.useState('All');
-  const statuses = ['All', 'Delivered', 'In Transit', 'Scheduled'];
-  const rows = DELIVERIES.filter(d => (filter === 'All' || d.status === filter) && (d.id.toLowerCase().includes(search.toLowerCase()) || d.receiver.toLowerCase().includes(search.toLowerCase())));
+        /* ─── App Root ─── */
+        function App() {
+            const [account, setAccount] = useState(null);
+            const [role, setRole] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [activeModule, setActiveModule] = useState('dashboard');
+            const [data, setData] = useState(SEED);
+            const [syncStatus, setSyncStatus] = useState('idle'); // idle, syncing, success, error
 
-  const Col = ({ label, w = 'auto' }) => (
-    <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 0.8, textTransform: 'uppercase', whiteSpace: 'nowrap', width: w, borderBottom: '1px solid #1f2d45' }}>{label}</th>
-  );
-  const Cell = ({ children, mono = false }) => (
-    <td style={{ padding: '12px 14px', fontSize: 12, color: '#cbd5e1', whiteSpace: 'nowrap', fontFamily: mono ? 'monospace' : 'inherit', borderBottom: '1px solid #131c2e' }}>{children}</td>
-  );
+            useEffect(() => {
+                msalInstance.handleRedirectPromise().then(res => {
+                    const currentAccount = res?.account || msalInstance.getAllAccounts()[0];
+                    if (currentAccount) {
+                        setAccount(currentAccount);
+                        const email = currentAccount.username.toLowerCase();
+                        if (ADMIN_EMAILS.includes(email)) setRole('admin');
+                        else if (OPS_EMAILS.includes(email) || email.includes('ahmed')) setRole('admin'); // Fallback for Ahmed
+                        else setRole('operational');
+                        
+                        loadFromOneDrive(currentAccount);
+                    }
+                    setLoading(false);
+                }).catch(err => {
+                    console.error(err);
+                    setLoading(false);
+                });
+            }, []);
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 200, position: 'relative' }}>
-          <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#475569' }}><Icons.search /></div>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by ID or receiver..." style={{ width: '100%', padding: '10px 12px 10px 40px', background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 10, color: '#f1f5f9', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {statuses.map(s => (
-            <button key={s} onClick={() => setFilter(s)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid', borderColor: filter === s ? '#3b82f6' : '#1f2d45', background: filter === s ? '#3b82f622' : '#0d1117', color: filter === s ? '#3b82f6' : '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{s}</button>
-          ))}
-        </div>
-        <div style={{ fontSize: 12, color: '#475569' }}>{rows.length} records</div>
-      </div>
-      <div style={{ overflowX: 'auto', background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 14 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1400 }}>
-          <thead><tr style={{ background: '#080c14' }}>
-            <Col label="Note ID" /><Col label="Receiver" /><Col label="Contact" /><Col label="Address" /><Col label="Delivery Date" /><Col label="Time" /><Col label="Status" /><Col label="Model" /><Col label="Sales Person" /><Col label="Warranty" /><Col label="Serial No" /><Col label="Success Call" /><Col label="Review" /><Col label="Free Session" /><Col label="Notes" />
-          </tr></thead>
-          <tbody>
-            {rows.map((d, i) => (
-              <tr key={d.id} style={{ background: i % 2 === 0 ? '#0d1117' : '#090d15' }}>
-                <Cell mono>{d.id}</Cell>
-                <Cell><span style={{ fontWeight: 600, color: '#e2e8f0' }}>{d.receiver}</span></Cell>
-                <Cell>{d.contact}</Cell>
-                <Cell><span style={{ maxWidth: 160, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.address}</span></Cell>
-                <Cell>{d.deliveryDate}</Cell>
-                <Cell>{d.deliveryTime}</Cell>
-                <Cell><Badge label={d.status} /></Cell>
-                <Cell>{d.model}</Cell>
-                <Cell>{d.salesPerson}</Cell>
-                <Cell><Badge label={d.warrantyStatus || 'Pending'} /></Cell>
-                <Cell mono>{d.serial}</Cell>
-                <Cell><Badge label={d.successCall} /></Cell>
-                <Cell><Badge label={d.reviewForm} /></Cell>
-                <Cell><Badge label={d.freeSession} /></Cell>
-                <Cell><span style={{ maxWidth: 180, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', color: '#64748b' }}>{d.notes}</span></Cell>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
+            const login = () => {
+                msalInstance.loginRedirect({ scopes: ["User.Read", "Files.ReadWrite.All", "Mail.Read"] });
+            };
 
-function SpareParts({ user }) {
-  const isAdmin = user.role === 'admin';
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 4 }}>
-        <StatCard label="Total SKUs" value={PARTS.length} sub="Active stock items" icon={Icons.box} color="#10b981" />
-        <StatCard label="Low Stock" value={PARTS.filter(p => p.qty <= p.reorder).length} sub="At or below reorder point" icon={Icons.alert} color="#f59e0b" />
-        <StatCard label="Total Units" value={PARTS.reduce((a, p) => a + p.qty, 0)} sub="In warehouse" icon={Icons.parts} color="#3b82f6" />
-      </div>
-      <div style={{ background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 14, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ background: '#080c14' }}>
-            {['SKU', 'Part Name', 'Category', 'Qty', 'Reorder Pt', 'Unit Price', 'Location', 'Last Updated', 'Status'].map(h => (
-              <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 0.8, textTransform: 'uppercase', borderBottom: '1px solid #1f2d45' }}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {PARTS.map((p, i) => {
-              const low = p.qty <= p.reorder;
-              return (
-                <tr key={p.sku} style={{ background: i % 2 === 0 ? '#0d1117' : '#090d15' }}>
-                  <td style={{ padding: '13px 16px', fontFamily: 'monospace', fontSize: 12, color: '#94a3b8', borderBottom: '1px solid #131c2e' }}>{p.sku}</td>
-                  <td style={{ padding: '13px 16px', fontSize: 13, fontWeight: 600, color: '#e2e8f0', borderBottom: '1px solid #131c2e' }}>{p.name}</td>
-                  <td style={{ padding: '13px 16px', fontSize: 12, color: '#64748b', borderBottom: '1px solid #131c2e' }}>{p.category}</td>
-                  <td style={{ padding: '13px 16px', borderBottom: '1px solid #131c2e' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: low ? '#f59e0b' : '#10b981' }}>{p.qty}</span>
-                      <div style={{ width: 60, height: 4, background: '#1e293b', borderRadius: 2 }}>
-                        <div style={{ width: `${Math.min((p.qty / (p.reorder * 3)) * 100, 100)}%`, height: '100%', background: low ? '#f59e0b' : '#10b981', borderRadius: 2 }} />
-                      </div>
+            const logout = () => {
+                msalInstance.logoutRedirect();
+            };
+
+            const saveToOneDrive = async (newData) => {
+                if (!account) return;
+                setSyncStatus('syncing');
+                try {
+                    const tokenRes = await msalInstance.acquireTokenSilent({
+                        scopes: ["Files.ReadWrite.All"],
+                        account: account
+                    });
+                    const blob = new Blob([JSON.stringify(newData)], { type: 'application/json' });
+                    await fetch("https://graph.microsoftonline.com/v1.0/me/drive/special/approot:/uae_ops_data_v2.json:/content", {
+                        method: "PUT",
+                        headers: { "Authorization": `Bearer ${tokenRes.accessToken}` },
+                        body: blob
+                    });
+                    setSyncStatus('success');
+                    setTimeout(() => setSyncStatus('idle'), 3000);
+                } catch (err) {
+                    console.error("OneDrive Sync Error", err);
+                    setSyncStatus('error');
+                }
+            };
+
+            const loadFromOneDrive = async (acc) => {
+                try {
+                    const tokenRes = await msalInstance.acquireTokenSilent({
+                        scopes: ["Files.ReadWrite.All"],
+                        account: acc
+                    });
+                    const res = await fetch("https://graph.microsoftonline.com/v1.0/me/drive/special/approot:/uae_ops_data_v2.json:/content", {
+                        headers: { "Authorization": `Bearer ${tokenRes.accessToken}` }
+                    });
+                    if (res.ok) {
+                        const cloudData = await res.json();
+                        setData(cloudData);
+                    }
+                } catch (err) {
+                    console.warn("No cloud data found, using local seed.");
+                }
+            };
+
+            const updateData = (newData) => {
+                setData(newData);
+                saveToOneDrive(newData);
+            };
+
+            if (loading) return (
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-500"></div>
+                </div>
+            );
+
+            if (!account) return (
+                <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
+                    <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#1e3a8a 1px, transparent 1px)', backgroundSize: '32px 32px' }}></div>
+                    <div className="max-w-md w-full glass p-10 rounded-3xl shadow-2xl relative z-10 border border-sky-500/20 text-center">
+                        <div className="w-20 h-20 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-sky-500/30 mb-8">
+                            <span className="text-3xl font-black text-white italic">OX</span>
+                        </div>
+                        <h1 className="serif text-3xl mb-2">OxeFit UAE</h1>
+                        <p className="text-slate-400 text-sm mb-10 tracking-widest uppercase">Operations Platform v2.0</p>
+                        
+                        <button onClick={login} className="w-full py-4 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold transition-all shadow-lg shadow-sky-500/20 flex items-center justify-center gap-3">
+                            <svg className="w-5 h-5" viewBox="0 0 23 23"><path fill="#f3f3f3" d="M0 0h11v11H0z"/><path fill="#f3f3f3" d="M12 0h11v11H12z"/><path fill="#f3f3f3" d="M0 12h11v11H0z"/><path fill="#f3f3f3" d="M12 12h11v11H12z"/></svg>
+                            Sign in with Azure AD
+                        </button>
+                        
+                        <div className="mt-10 pt-10 border-t border-slate-800 text-[10px] text-slate-500 leading-relaxed">
+                            Secured by Microsoft Identity · Restricted to core-velocity.com<br/>
+                            Client ID: cd1b7f5f-5ff9-4066-ab4f-06f270a94fcb
+                        </div>
                     </div>
-                  </td>
-                  <td style={{ padding: '13px 16px', fontSize: 12, color: '#475569', borderBottom: '1px solid #131c2e' }}>{p.reorder}</td>
-                  <td style={{ padding: '13px 16px', fontSize: 12, color: '#94a3b8', borderBottom: '1px solid #131c2e' }}>{p.unit}</td>
-                  <td style={{ padding: '13px 16px', fontSize: 12, color: '#64748b', borderBottom: '1px solid #131c2e' }}>{p.location}</td>
-                  <td style={{ padding: '13px 16px', fontSize: 12, color: '#475569', borderBottom: '1px solid #131c2e' }}>{p.lastUpdated}</td>
-                  <td style={{ padding: '13px 16px', borderBottom: '1px solid #131c2e' }}>
-                    {low ? <Badge label="Low Stock" /> : <Badge label="Stocked" />}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function ShippingLogs() {
-  const total = SHIPPING.reduce((a, s) => a + parseInt(s.total.replace(/[^0-9]/g, '')), 0);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 4 }}>
-        <StatCard label="Total Shipments" value={SHIPPING.length} sub="All time" icon={Icons.shipping} color="#a855f7" />
-        <StatCard label="Total Cost" value={`AED ${total.toLocaleString()}`} sub="Freight + customs + handling" icon={Icons.trending} color="#3b82f6" />
-        <StatCard label="In Transit" value={SHIPPING.filter(s => s.status === 'In Transit').length} sub="Awaiting arrival" icon={Icons.clock} color="#f59e0b" />
-      </div>
-      <div style={{ background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 14, overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1000 }}>
-          <thead><tr style={{ background: '#080c14' }}>
-            {['Ref No', 'Date', 'Origin', 'Destination', 'Carrier', 'Weight', 'Units', 'Freight', 'Customs', 'Handling', 'Total', 'ETA', 'Status'].map(h => (
-              <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 0.8, textTransform: 'uppercase', borderBottom: '1px solid #1f2d45', whiteSpace: 'nowrap' }}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {SHIPPING.map((s, i) => (
-              <tr key={s.ref} style={{ background: i % 2 === 0 ? '#0d1117' : '#090d15' }}>
-                {[s.ref, s.date, s.origin, s.destination, s.carrier, s.weight, s.units, s.freight, s.customs, s.handling].map((v, j) => (
-                  <td key={j} style={{ padding: '12px 16px', fontSize: j === 0 ? 12 : 13, fontFamily: j === 0 ? 'monospace' : 'inherit', color: j === 0 ? '#94a3b8' : '#cbd5e1', borderBottom: '1px solid #131c2e', whiteSpace: 'nowrap' }}>{v}</td>
-                ))}
-                <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#3b82f6', borderBottom: '1px solid #131c2e', whiteSpace: 'nowrap' }}>{s.total}</td>
-                <td style={{ padding: '12px 16px', fontSize: 12, color: '#64748b', borderBottom: '1px solid #131c2e', whiteSpace: 'nowrap' }}>{s.eta}</td>
-                <td style={{ padding: '12px 16px', borderBottom: '1px solid #131c2e' }}><Badge label={s.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr style={{ background: '#060a10' }}>
-              <td colSpan={10} style={{ padding: '12px 16px', fontSize: 12, fontWeight: 700, color: '#475569', textAlign: 'right' }}>TOTAL COST</td>
-              <td style={{ padding: '12px 16px', fontSize: 14, fontWeight: 800, color: '#3b82f6' }}>AED {total.toLocaleString()}</td>
-              <td colSpan={2} />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function TicketTracker({ user }) {
-  const [filter, setFilter] = React.useState('All');
-  const open = TICKETS.filter(t => t.corevStatus !== 'Closed');
-  const filtered = filter === 'All' ? TICKETS : filter === 'Open' ? open : TICKETS.filter(t => t.corevStatus === 'Closed');
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 4 }}>
-        <StatCard label="Open Tickets" value={open.length} sub="Requiring action" icon={Icons.alert} color="#f59e0b" />
-        <StatCard label="Critical" value={TICKETS.filter(t => t.priority === 'Critical').length} sub="Immediate attention" icon={Icons.xCircle} color="#ef4444" />
-        <StatCard label="Resolved" value={TICKETS.filter(t => t.corevStatus === 'Closed').length} sub="Closed tickets" icon={Icons.check} color="#10b981" />
-      </div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-        {['All', 'Open', 'Closed'].map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid', borderColor: filter === f ? '#3b82f6' : '#1f2d45', background: filter === f ? '#3b82f622' : '#0d1117', color: filter === f ? '#3b82f6' : '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{f}</button>
-        ))}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {filtered.map(t => (
-          <div key={t.id} style={{ background: '#0d1117', border: `1px solid`, borderColor: t.priority === 'Critical' ? '#ef444433' : '#1f2d45', borderRadius: 12, padding: '18px 22px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#3b82f6', fontWeight: 700 }}>{t.id}</span>
-                <Badge label={t.priority} />
-                <span style={{ fontSize: 12, color: '#64748b' }}>{t.customer}</span>
-                <span style={{ fontSize: 12, color: '#475569' }}>- {t.model}</span>
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, color: '#475569' }}>Due: {t.dueDate}</span>
-                <span style={{ fontSize: 11, color: '#64748b', background: '#1e293b', padding: '3px 10px', borderRadius: 6 }}>Assignee: {t.assignee}</span>
-              </div>
-            </div>
-            <div style={{ marginTop: 12, fontSize: 14, color: '#e2e8f0', fontWeight: 500 }}>{t.issue}</div>
-            <div style={{ marginTop: 12, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>OxeFit Status</div>
-                <Badge label={t.oxefitStatus} />
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>CoreV Status</div>
-                <Badge label={t.corevStatus} />
-              </div>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>Outlook Thread</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: '#475569' }}><Icons.mail /></span>
-                  <span style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>{t.outlookThread}</span>
                 </div>
-              </div>
-            </div>
-            {t.resolution && (
-              <div style={{ marginTop: 12, padding: '10px 14px', background: '#10b98112', border: '1px solid #10b98122', borderRadius: 8, fontSize: 12, color: '#6ee7b7' }}>
-                <strong style={{ color: '#10b981' }}>Resolution: </strong>{t.resolution}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── APP ───────────────────────────────────────────────────────────────────────
-export default function App() {
-  const [authStep, setAuthStep] = React.useState('login'); // login | selecting | app
-  const [selectedUser, setSelectedUser] = React.useState(null);
-  const [currentUser, setCurrentUser] = React.useState(null);
-  const [activeModule, setActiveModule] = React.useState('dashboard');
-  const [collapsed, setCollapsed] = React.useState(false);
-  const [syncState, setSyncState] = React.useState('synced'); // synced | syncing | offline
-  const [showUserPicker, setShowUserPicker] = React.useState(false);
-
-  React.useEffect(() => {
-    const saved = localStorage.getItem('oxefit_uae_user');
-    if (saved) { setCurrentUser(JSON.parse(saved)); setAuthStep('app'); }
-  }, []);
-
-  React.useEffect(() => {
-    if (authStep !== 'app') return;
-    const interval = setInterval(() => {
-      setSyncState('syncing');
-      setTimeout(() => {
-        localStorage.setItem('oxefit_uae_data', JSON.stringify({ deliveries: DELIVERIES, parts: PARTS, shipping: SHIPPING, tickets: TICKETS, syncedAt: new Date().toISOString(), file: OD_FILE }));
-        setSyncState('synced');
-      }, 1800);
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [authStep]);
-
-  const handleMSLogin = () => { setAuthStep('selecting'); };
-  const handleUserSelect = (u) => { setSelectedUser(u); };
-  const handleConfirmLogin = () => {
-    if (!selectedUser) return;
-    localStorage.setItem('oxefit_uae_user', JSON.stringify(selectedUser));
-    setCurrentUser(selectedUser);
-    setSyncState('syncing');
-    setTimeout(() => setSyncState('synced'), 2000);
-    setAuthStep('app');
-  };
-  const handleLogout = () => { localStorage.removeItem('oxefit_uae_user'); setCurrentUser(null); setSelectedUser(null); setAuthStep('login'); };
-
-  const nav = [
-    { id: 'dashboard', label: 'Executive Dashboard', Icon: Icons.dashboard },
-    { id: 'delivery', label: 'Delivery Tracking', Icon: Icons.delivery },
-    { id: 'parts', label: 'Spare Parts', Icon: Icons.parts },
-    { id: 'shipping', label: 'Shipping Logs', Icon: Icons.shipping },
-    { id: 'tickets', label: 'Ticket Tracker', Icon: Icons.ticket },
-  ];
-
-  const moduleTitle = { dashboard: 'Executive Dashboard', delivery: 'Delivery Tracking', parts: 'Spare Parts Inventory', shipping: 'Shipping Logs', tickets: 'Ticket Tracker' };
-
-  // ── LOGIN ──
-  if (authStep === 'login' || authStep === 'selecting') return (
-    <div style={{ minHeight: '100vh', background: '#07090f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Segoe UI', -apple-system, sans-serif", position: 'relative', overflow: 'hidden' }}>
-      <style>{`
-        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
-        @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:0.7} }
-        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        .orb { position:absolute; border-radius:50%; filter:blur(80px); animation:pulse 6s ease-in-out infinite; pointer-events:none; }
-        .fade-in { animation: fadeIn 0.4s ease; }
-        @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-      `}</style>
-      <div className="orb" style={{ width: 400, height: 400, background: '#3b82f6', top: '-100px', left: '-100px', opacity: 0.15 }} />
-      <div className="orb" style={{ width: 300, height: 300, background: '#06b6d4', bottom: '-80px', right: '-80px', opacity: 0.12, animationDelay: '3s' }} />
-
-      {authStep === 'login' && (
-        <div className="fade-in" style={{ background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 20, padding: '48px 44px', width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 36 }}>
-            <div style={{ width: 46, height: 46, background: 'linear-gradient(135deg,#3b82f6,#06b6d4)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, color: '#fff', letterSpacing: -1 }}>Ox</div>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#f1f5f9', letterSpacing: -0.5 }}>OxeFit by CoreV</div>
-              <div style={{ fontSize: 11, color: '#475569', letterSpacing: 1, textTransform: 'uppercase' }}>UAE Operations Platform v2.0</div>
-            </div>
-          </div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: '#f1f5f9', marginBottom: 8 }}>Welcome back</div>
-          <div style={{ fontSize: 13, color: '#475569', marginBottom: 32, lineHeight: 1.6 }}>Sign in with your CoreV Microsoft account to access the UAE Operations dashboard.</div>
-          <button onClick={handleMSLogin} style={{ width: '100%', padding: '14px 20px', background: '#fff', border: 'none', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#1e293b', transition: 'all 0.2s' }}>
-            <Icons.microsoft />
-            Sign in with Microsoft
-          </button>
-          <div style={{ marginTop: 24, padding: '12px 16px', background: '#3b82f608', border: '1px solid #1f2d45', borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: '#475569', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span><span style={{ color: '#3b82f6', fontWeight: 700 }}>Tenant:</span> {TENANT}</span>
-              <span><span style={{ color: '#3b82f6', fontWeight: 700 }}>Client ID:</span> {CLIENT_ID.slice(0, 18)}...</span>
-              <span><span style={{ color: '#3b82f6', fontWeight: 700 }}>Mode:</span> Single Tenant / SSO</span>
-              <span><span style={{ color: '#10b981', fontWeight: 700 }}>Storage:</span> OneDrive - {OD_FILE}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {authStep === 'selecting' && (
-        <div className="fade-in" style={{ background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 20, padding: '40px 44px', width: '100%', maxWidth: 460, position: 'relative', zIndex: 1 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#f1f5f9', marginBottom: 6 }}>Select your account</div>
-          <div style={{ fontSize: 12, color: '#475569', marginBottom: 24 }}>core-velocity.com ({CLIENT_ID.slice(0, 8)}...)</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
-            {USERS.map(u => (
-              <div key={u.id} onClick={() => handleUserSelect(u)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: '1px solid', borderColor: selectedUser?.id === u.id ? '#3b82f6' : '#1f2d45', background: selectedUser?.id === u.id ? '#3b82f610' : '#080c14', cursor: 'pointer', transition: 'all 0.15s' }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: selectedUser?.id === u.id ? 'linear-gradient(135deg,#3b82f6,#06b6d4)' : '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#f1f5f9', letterSpacing: 0.5, flexShrink: 0 }}>{u.initials}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>{u.name}</div>
-                  <div style={{ fontSize: 11, color: '#475569' }}>{u.email}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: u.role === 'admin' ? '#f59e0b22' : '#3b82f622', color: u.role === 'admin' ? '#f59e0b' : '#3b82f6' }}>{u.role === 'admin' ? 'ADMIN' : 'OPS'}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button onClick={handleConfirmLogin} disabled={!selectedUser} style={{ width: '100%', padding: '13px', background: selectedUser ? 'linear-gradient(90deg,#3b82f6,#06b6d4)' : '#1e293b', border: 'none', borderRadius: 10, color: selectedUser ? '#fff' : '#475569', fontSize: 14, fontWeight: 700, cursor: selectedUser ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}>
-            Continue as {selectedUser ? selectedUser.name.split(' ')[0] : '...'}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  // ── MAIN APP ──
-  return (
-    <div style={{ minHeight: '100vh', background: '#07090f', display: 'flex', fontFamily: "'Segoe UI', -apple-system, sans-serif', color: '#f1f5f9'" }}>
-      <style>{`
-        ::-webkit-scrollbar{width:6px;height:6px} ::-webkit-scrollbar-track{background:#080c14} ::-webkit-scrollbar-thumb{background:#1e2d47;border-radius:3px}
-        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-        @keyframes fadeSlide{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
-        .nav-btn:hover{background:#1e293b!important}
-        .module-fade{animation:fadeSlide 0.3s ease}
-      `}</style>
-
-      {/* SIDEBAR */}
-      <div style={{ width: collapsed ? 68 : 240, flexShrink: 0, background: '#080c14', borderRight: '1px solid #1f2d45', display: 'flex', flexDirection: 'column', transition: 'width 0.25s ease', overflow: 'hidden' }}>
-        {/* Logo */}
-        <div style={{ padding: collapsed ? '20px 16px' : '20px 20px', borderBottom: '1px solid #1f2d45', display: 'flex', alignItems: 'center', gap: 12, minHeight: 68 }}>
-          <div style={{ width: 36, height: 36, flexShrink: 0, background: 'linear-gradient(135deg,#3b82f6,#06b6d4)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, color: '#fff' }}>Ox</div>
-          {!collapsed && (
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#f1f5f9', whiteSpace: 'nowrap' }}>OxeFit by CoreV</div>
-              <div style={{ fontSize: 9, color: '#3b82f6', fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase' }}>UAE Operations v2.0</div>
-            </div>
-          )}
-        </div>
-
-        {/* Nav */}
-        <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {nav.map(n => {
-            const active = activeModule === n.id;
-            return (
-              <button key={n.id} className="nav-btn" onClick={() => setActiveModule(n.id)} style={{ width: '100%', padding: collapsed ? '11px' : '11px 14px', borderRadius: 10, border: 'none', background: active ? '#3b82f618' : 'transparent', color: active ? '#3b82f6' : '#64748b', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s', position: 'relative', borderLeft: active ? '2px solid #3b82f6' : '2px solid transparent' }}>
-                <span style={{ flexShrink: 0 }}><n.Icon /></span>
-                {!collapsed && <span style={{ fontSize: 13, fontWeight: active ? 700 : 500, whiteSpace: 'nowrap' }}>{n.label}</span>}
-              </button>
             );
-          })}
-        </nav>
 
-        {/* Collapse toggle */}
-        <div style={{ padding: '12px 8px', borderTop: '1px solid #1f2d45' }}>
-          <button onClick={() => setCollapsed(c => !c)} style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1px solid #1f2d45', background: '#0d1117', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {collapsed ? <Icons.chevRight /> : <Icons.chevLeft />}
-          </button>
-        </div>
+            return (
+                <div className="flex min-h-screen overflow-hidden">
+                    {/* Sidebar */}
+                    <div className="w-64 bg-[#060e22] border-r border-[#1a3360] flex flex-col shrink-0">
+                        <div className="p-6 flex items-center gap-3 border-b border-[#1a3360]">
+                            <div className="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-white font-black text-sm italic">OX</div>
+                            <div>
+                                <div className="serif text-sm leading-none mb-1">OxeFit UAE</div>
+                                <div className="text-[9px] text-slate-500 uppercase tracking-tighter">Ops Center v2.0</div>
+                            </div>
+                        </div>
+                        
+                        <nav className="flex-1 p-4 space-y-1">
+                            {[
+                                { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+                                { id: 'delivery', label: 'Deliveries', icon: 'delivery' },
+                                { id: 'spares', label: 'Spare Parts', icon: 'spare' },
+                                { id: 'shipping', label: 'Shipping Logs', icon: 'shipping' },
+                                { id: 'tickets', label: 'Support Tickets', icon: 'ticket' },
+                            ].map(item => (
+                                <button key={item.id} onClick={() => setActiveModule(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeModule === item.id ? 'bg-sky-500/10 text-sky-400' : 'text-slate-400 hover:bg-slate-800/50'}`}>
+                                    <Icon name={item.icon} size={18} color={activeModule === item.id ? "#0ea5e9" : "#475569"} />
+                                    <span className="text-sm font-semibold">{item.label}</span>
+                                </button>
+                            ))}
+                        </nav>
 
-        {/* User info */}
-        {!collapsed && currentUser && (
-          <div style={{ padding: '12px 16px', borderTop: '1px solid #1f2d45', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#3b82f6,#06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0 }}>{currentUser.initials}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentUser.name.split(' ')[0]}</div>
-              <div style={{ fontSize: 10, color: '#475569', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>{currentUser.role}</div>
-            </div>
-            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: 4 }} title="Sign out"><Icons.logout /></button>
-          </div>
-        )}
-      </div>
+                        <div className="p-4 border-t border-[#1a3360]">
+                            <div className="flex items-center gap-3 px-2 py-3">
+                                <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-[10px] font-bold text-white uppercase tracking-tighter shadow-lg shadow-indigo-500/20">
+                                    {account.name.split(' ').map(n => n[0]).join('')}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-xs font-bold truncate">{account.name}</div>
+                                    <div className="text-[10px] text-sky-400 uppercase font-black">{role}</div>
+                                </div>
+                                <button onClick={logout} className="text-slate-500 hover:text-rose-400 transition-colors">
+                                    <Icon name="logout" size={16} />
+                                </button>
+                            </div>
+                            
+                            <div className="mt-2 px-2 py-2 rounded-lg bg-[#0d1c3d] flex items-center justify-between">
+                                <span className="text-[9px] text-slate-500 uppercase font-bold">OneDrive Sync</span>
+                                {syncStatus === 'syncing' ? (
+                                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                                ) : (
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
 
-      {/* MAIN */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Topbar */}
-        <div style={{ background: '#080c14', borderBottom: '1px solid #1f2d45', padding: '0 28px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', margin: 0 }}>{moduleTitle[activeModule]}</h1>
-            {currentUser?.role === 'admin' && (
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: '#f59e0b22', color: '#f59e0b', letterSpacing: 0.8 }}>ADMIN</span>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Sync indicator */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 8 }}>
-              <span style={{ color: syncState === 'synced' ? '#10b981' : syncState === 'syncing' ? '#3b82f6' : '#f59e0b', animation: syncState === 'syncing' ? 'spin 1.2s linear infinite' : 'none', display: 'block' }}>
-                <Icons.sync />
-              </span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: syncState === 'synced' ? '#10b981' : syncState === 'syncing' ? '#3b82f6' : '#f59e0b' }}>
-                {syncState === 'synced' ? 'OneDrive Synced' : syncState === 'syncing' ? 'Syncing...' : 'Offline'}
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: '#0d1117', border: '1px solid #1f2d45', borderRadius: 8 }}>
-              <span style={{ color: '#475569' }}><Icons.cloud /></span>
-              <span style={{ fontSize: 11, color: '#475569', fontFamily: 'monospace' }}>{OD_FILE}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg,#3b82f6,#06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff' }}>{currentUser?.initials}</div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>{currentUser?.name}</span>
-                <span style={{ fontSize: 10, color: '#475569' }}>{currentUser?.dept}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+                    {/* Main Content */}
+                    <main className="flex-1 flex flex-col min-w-0">
+                        {/* Header */}
+                        <header className="h-16 border-b border-[#1a3360] bg-[#08112b] px-8 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-4">
+                                <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">{activeModule}</h2>
+                                <span className="text-[#1a3360]">/</span>
+                                <span className="text-xs text-slate-500 uppercase font-bold italic">{new Date().toLocaleDateString('en-AE', { weekday: 'long', day: 'numeric', month: 'short' })}</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/5 border border-emerald-500/10">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                    <span className="text-[10px] text-emerald-500 font-black uppercase">Live Platform</span>
+                                </div>
+                            </div>
+                        </header>
 
-        {/* Content */}
-        <div className="module-fade" key={activeModule} style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
-          {activeModule === 'dashboard' && <Dashboard user={currentUser} />}
-          {activeModule === 'delivery' && <DeliveryTracking user={currentUser} />}
-          {activeModule === 'parts' && <SpareParts user={currentUser} />}
-          {activeModule === 'shipping' && <ShippingLogs />}
-          {activeModule === 'tickets' && <TicketTracker user={currentUser} />}
-        </div>
+                        <div className="flex-1 overflow-y-auto p-8">
+                            {activeModule === 'dashboard' && <DashboardModule data={data} />}
+                            {activeModule === 'delivery' && <DeliveryModule data={data} updateData={updateData} role={role} />}
+                            {activeModule === 'spares' && <SpareModule data={data} updateData={updateData} role={role} />}
+                            {activeModule === 'shipping' && <ShippingModule data={data} updateData={updateData} role={role} />}
+                            {activeModule === 'tickets' && <TicketModule data={data} updateData={updateData} role={role} />}
+                        </div>
+                    </main>
+                </div>
+            );
+        }
 
-        {/* Footer */}
-        <div style={{ padding: '8px 28px', background: '#080c14', borderTop: '1px solid #1f2d45', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 10, color: '#334155' }}>OxeFit UAE Operations Platform v2.0 - CoreV - Tenant: {TENANT}</span>
-          <span style={{ fontSize: 10, color: '#334155' }}>Azure AD SSO - Client ID: {CLIENT_ID}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+        /* ─── Dashboard Component ─── */
+        function DashboardModule({ data }) {
+            const stats = [
+                { label: 'Delivery Notes', val: data.deliveries.length, icon: 'delivery', color: 'text-sky-400' },
+                { label: 'Units Deployed', val: data.deliveries.reduce((a,b) => a+b.units,0), icon: 'delivery', color: 'text-emerald-400' },
+                { label: 'Parts in Stock', val: data.spares.reduce((a,b) => a+b.stock,0), icon: 'spare', color: 'text-amber-400' },
+                { label: 'Active Tickets', val: data.tickets.filter(t => t.status !== 'Resolved').length, icon: 'ticket', color: 'text-rose-400' }
+            ];
+
+            return (
+                <div className="space-y-10">
+                    <div className="grid grid-cols-4 gap-6">
+                        {stats.map((s, i) => (
+                            <div key={i} className="glass p-6 rounded-3xl border-slate-800/50">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className={`p-3 rounded-2xl bg-slate-900/50 ${s.color}`}>
+                                        <Icon name={s.icon} size={20} />
+                                    </div>
+                                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">Live Realtime</span>
+                                </div>
+                                <div className="text-4xl serif font-black mb-1">{s.val}</div>
+                                <div className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{s.label}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-8">
+                        <div className="glass p-8 rounded-3xl border-slate-800/50">
+                            <h3 className="serif text-xl mb-6">Recent Activity</h3>
+                            <div className="space-y-4">
+                                {data.deliveries.slice(0, 5).map(d => (
+                                    <div key={d.id} className="flex items-center justify-between py-3 border-b border-slate-800/50 last:border-0">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-[10px] font-black text-sky-400">DN</div>
+                                            <div>
+                                                <div className="text-sm font-bold">{d.customer}</div>
+                                                <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">{d.id} · {d.orderDate}</div>
+                                            </div>
+                                        </div>
+                                        <Badge status={d.status} />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="glass p-8 rounded-3xl border-slate-800/50">
+                            <h3 className="serif text-xl mb-6">Logistics Spend</h3>
+                            <div className="flex flex-col h-full justify-between pb-8">
+                                <div>
+                                    <div className="text-6xl serif font-black text-amber-500 mb-2">
+                                        <span className="text-2xl mr-2">AED</span>
+                                        {data.shipping.reduce((a,b) => a+b.cost, 0).toLocaleString()}
+                                    </div>
+                                    <div className="text-xs text-slate-500 uppercase tracking-[0.2em] font-black">Total Verified Cost</div>
+                                </div>
+                                <div className="mt-10 p-6 rounded-2xl bg-slate-900/50 border border-slate-800/50">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <span className="text-[10px] text-slate-500 font-black uppercase">Carrier Efficiency</span>
+                                        <span className="text-[10px] text-emerald-400 font-black">Optimal</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-emerald-500 w-[84%]"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        /* ─── Module Template (Delivery) ─── */
+        function DeliveryModule({ data, updateData, role }) {
+            const [search, setSearch] = useState("");
+            const [showModal, setShowModal] = useState(false);
+            const [editItem, setEditItem] = useState(null);
+            
+            const emptyForm = { 
+                id: '', orderDate: '', customer: '', status: 'Pending', units: 1, special: '', estDelivery: '', actDelivery: '',
+                receiverName: '', contactNumber: '', email: '', address: '', deliveryTime: '',
+                model: 'XS1', salesPerson: '', salesCoach: '', warrantyStart: '', warrantyPeriod: 12, warrantyEnd: '',
+                notes: '', customerSuccessCall: 'Pending', salesCoachDelivered: 'No', offeredFlooring: 'NO',
+                serialNo: '', sharedReviewForm: 'No', freeSession: 'No'
+            };
+            
+            const [form, setForm] = useState(emptyForm);
+
+            const handleSave = () => {
+                const updated = editItem 
+                    ? data.deliveries.map(d => d.id === editItem.id ? form : d)
+                    : [...data.deliveries, form];
+                updateData({ ...data, deliveries: updated });
+                setShowModal(false);
+                setEditItem(null);
+            };
+
+            const filtered = data.deliveries.filter(d => 
+                (d.customer && d.customer.toLowerCase().includes(search.toLowerCase())) || 
+                (d.id && d.id.toLowerCase().includes(search.toLowerCase()))
+            );
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div className="relative w-96">
+                            <input 
+                                value={search} 
+                                onChange={e => setSearch(e.target.value)}
+                                className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl py-3 pl-12 pr-4 text-sm focus:border-sky-500 outline-none transition-all"
+                                placeholder="Search by DN ID or Customer..."
+                            />
+                            <Icon name="delivery" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                        </div>
+                        <button onClick={() => { setEditItem(null); setForm({ ...emptyForm, id: `DN-24${String(data.deliveries.length+1).padStart(2, '0')}`, orderDate: new Date().toISOString().split('T')[0] }); setShowModal(true); }} className="px-6 py-3 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold flex items-center gap-2 transition-all">
+                            <Icon name="plus" size={16} /> New Delivery Note
+                        </button>
+                    </div>
+
+                    <div className="glass rounded-3xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse min-w-[2000px]">
+                                <thead>
+                                    <tr className="bg-slate-900/50">
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky left-0 bg-[#08112b] z-10">ID</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky left-24 bg-[#08112b] z-10">Customer</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Status</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Model</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Serial No</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Receiver</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Contact</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Order Date</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Delivery Date</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Warranty End</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Sales Coach</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Success Call</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800/50">
+                                    {filtered.map(d => (
+                                        <tr key={d.id} className="hover:bg-slate-800/30 transition-colors">
+                                            <td className="px-6 py-4 text-xs font-black text-sky-400 font-mono sticky left-0 bg-[#04091a]/80 backdrop-blur-md z-10">{d.id}</td>
+                                            <td className="px-6 py-4 text-sm font-bold sticky left-24 bg-[#04091a]/80 backdrop-blur-md z-10">{d.customer}</td>
+                                            <td className="px-6 py-4"><Badge status={d.status} /></td>
+                                            <td className="px-6 py-4 text-xs font-bold text-indigo-400">{d.model}</td>
+                                            <td className="px-6 py-4 text-xs font-mono text-slate-400">{d.serialNo || 'N/A'}</td>
+                                            <td className="px-6 py-4 text-xs text-slate-300">{d.receiverName}</td>
+                                            <td className="px-6 py-4 text-xs text-slate-400 font-mono">{d.contactNumber}</td>
+                                            <td className="px-6 py-4 text-xs text-slate-500 font-bold">{d.orderDate}</td>
+                                            <td className="px-6 py-4 text-xs text-emerald-500 font-bold">{d.actDelivery || d.estDelivery}</td>
+                                            <td className="px-6 py-4 text-xs text-rose-400 font-bold">{d.warrantyEnd}</td>
+                                            <td className="px-6 py-4 text-xs text-slate-500 font-bold">{d.salesCoach}</td>
+                                            <td className="px-6 py-4 text-xs">
+                                                <span className={`px-2 py-0.5 rounded-[4px] text-[9px] font-black uppercase ${d.customerSuccessCall === 'Done' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
+                                                    {d.customerSuccessCall}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => { setEditItem(d); setForm({...d}); setShowModal(true); }} className="p-2 hover:bg-sky-500/10 rounded-lg text-sky-500 transition-colors"><Icon name="edit" size={14} /></button>
+                                                    <button onClick={() => updateData({...data, deliveries: data.deliveries.filter(x => x.id !== d.id)})} className="p-2 hover:bg-rose-500/10 rounded-lg text-rose-500 transition-colors"><Icon name="trash" size={14} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {showModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+                            <div className="max-w-4xl w-full glass rounded-3xl p-8 border-sky-500/20 shadow-2xl my-auto">
+                                <div className="flex items-center justify-between mb-8">
+                                    <h2 className="serif text-2xl">Delivery Details & Logistics Log</h2>
+                                    <div className="flex items-center gap-2">
+                                        <Badge status={form.status} />
+                                        <span className="text-[10px] text-slate-500 font-mono">{form.id}</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-6">
+                                    {/* Section 1: Core Info */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-[10px] text-sky-500 font-black uppercase tracking-[0.2em] border-b border-sky-500/10 pb-2">Customer Info</h3>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Customer / Entity</label>
+                                            <input value={form.customer} onChange={e => setForm({...form, customer: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Receiver Name</label>
+                                            <input value={form.receiverName} onChange={e => setForm({...form, receiverName: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Contact Number</label>
+                                            <input value={form.contactNumber} onChange={e => setForm({...form, contactNumber: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Email Address</label>
+                                            <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Delivery Address</label>
+                                            <textarea value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm h-20" />
+                                        </div>
+                                    </div>
+
+                                    {/* Section 2: Logistics */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-[10px] text-amber-500 font-black uppercase tracking-[0.2em] border-b border-amber-500/10 pb-2">Logistics & Dates</h3>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Order Date</label>
+                                                <input type="date" value={form.orderDate} onChange={e => setForm({...form, orderDate: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Delivery Date</label>
+                                                <input type="date" value={form.actDelivery} onChange={e => setForm({...form, actDelivery: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Status</label>
+                                                <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs">
+                                                    {['Pending', 'In Transit', 'Delivered', 'Cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Time</label>
+                                                <input value={form.deliveryTime} onChange={e => setForm({...form, deliveryTime: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" placeholder="10:00 AM" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Model Delivered</label>
+                                            <select value={form.model} onChange={e => setForm({...form, model: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs">
+                                                {['XS1', 'XP1', 'Pro', 'Accessories Only'].map(m => <option key={m} value={m}>{m}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Serial Number</label>
+                                            <input value={form.serialNo} onChange={e => setForm({...form, serialNo: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm font-mono" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sales Person</label>
+                                                <input value={form.salesPerson} onChange={e => setForm({...form, salesPerson: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sales Coach</label>
+                                                <input value={form.salesCoach} onChange={e => setForm({...form, salesCoach: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Section 3: Post-Delivery */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-[10px] text-emerald-500 font-black uppercase tracking-[0.2em] border-b border-emerald-500/10 pb-2">Warranty & Success</h3>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Warranty Start</label>
+                                                <input type="date" value={form.warrantyStart} onChange={e => setForm({...form, warrantyStart: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Warranty (Mo)</label>
+                                                <input type="number" value={form.warrantyPeriod} onChange={e => setForm({...form, warrantyPeriod: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-3 py-2 text-xs" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Warranty End</label>
+                                            <input type="date" value={form.warrantyEnd} onChange={e => setForm({...form, warrantyEnd: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-2.5 text-sm" />
+                                        </div>
+                                        
+                                        <div className="space-y-3 pt-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Success Call</label>
+                                                <select value={form.customerSuccessCall} onChange={e => setForm({...form, customerSuccessCall: e.target.value})} className="bg-transparent text-xs font-bold text-sky-400 outline-none">
+                                                    {['Pending', 'Attempted', 'Done', 'N/A'].map(v => <option key={v} value={v}>{v}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Flooring Offered?</label>
+                                                <select value={form.offeredFlooring} onChange={e => setForm({...form, offeredFlooring: e.target.value})} className="bg-transparent text-xs font-bold text-sky-400 outline-none">
+                                                    {['YES', 'NO'].map(v => <option key={v} value={v}>{v}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Review Shared?</label>
+                                                <select value={form.sharedReviewForm} onChange={e => setForm({...form, sharedReviewForm: e.target.value})} className="bg-transparent text-xs font-bold text-sky-400 outline-none">
+                                                    {['Yes', 'No'].map(v => <option key={v} value={v}>{v}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Free Demo?</label>
+                                                <select value={form.freeSession} onChange={e => setForm({...form, freeSession: e.target.value})} className="bg-transparent text-xs font-bold text-sky-400 outline-none">
+                                                    {['Scheduled', 'Done', 'No'].map(v => <option key={v} value={v}>{v}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-8 pt-8 border-t border-slate-800 flex gap-4">
+                                    <div className="flex-1">
+                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1 block">General Notes</label>
+                                        <input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-3 text-sm" placeholder="Additional shipment or customer notes..." />
+                                    </div>
+                                    <div className="flex items-end gap-3">
+                                        <button onClick={() => setShowModal(false)} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all">Cancel</button>
+                                        <button onClick={handleSave} className="px-10 py-3 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold shadow-lg shadow-sky-500/20 transition-all">Save Operations Record</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        /* ─── Spare Parts Module ─── */
+        function SpareModule({ data, updateData, role }) {
+            const [search, setSearch] = useState("");
+            const [showModal, setShowModal] = useState(false);
+            const [editItem, setEditItem] = useState(null);
+            const [form, setForm] = useState({ id: '', partName: '', partNo: '', category: 'Electronics', stock: 0, minStock: 5, location: 'Dubai WH', updated: '' });
+
+            const handleSave = () => {
+                const updated = editItem 
+                    ? data.spares.map(s => s.id === editItem.id ? form : s)
+                    : [...data.spares, form];
+                updateData({ ...data, spares: updated });
+                setShowModal(false);
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                        <input value={search} onChange={e => setSearch(e.target.value)} className="w-96 bg-[#0d1c3d] border border-[#1a3360] rounded-xl py-3 px-4 text-sm" placeholder="Search Spares..." />
+                        <button onClick={() => { setEditItem(null); setForm({ id: `SP-${String(data.spares.length+1).padStart(3, '0')}`, partName: '', partNo: '', category: 'Electronics', stock: 0, minStock: 5, location: 'Dubai WH', updated: new Date().toISOString().split('T')[0] }); setShowModal(true); }} className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl font-bold flex items-center gap-2 transition-all">
+                            <Icon name="plus" size={16} /> Add Part
+                        </button>
+                    </div>
+                    <div className="glass rounded-3xl overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-900/50">
+                                <tr>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Part ID</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Name</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Category</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Stock</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Location</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/50">
+                                {data.spares.map(s => (
+                                    <tr key={s.id}>
+                                        <td className="px-6 py-4 font-mono text-amber-500 text-xs">{s.id}</td>
+                                        <td className="px-6 py-4 font-bold">{s.partName}</td>
+                                        <td className="px-6 py-4 text-xs font-bold uppercase text-slate-500">{s.category}</td>
+                                        <td className={`px-6 py-4 font-black ${s.stock < s.minStock ? 'text-rose-500' : 'text-emerald-500'}`}>{s.stock}</td>
+                                        <td className="px-6 py-4 text-xs font-bold uppercase text-slate-500">{s.location}</td>
+                                        <td className="px-6 py-4">
+                                            <button onClick={() => { setEditItem(s); setForm({...s}); setShowModal(true); }} className="text-sky-500"><Icon name="edit" size={14} /></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {showModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md">
+                            <div className="max-w-xl w-full glass rounded-3xl p-8 border-sky-500/20 shadow-2xl">
+                                <h2 className="serif text-2xl mb-6">Part Details</h2>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-2 space-y-1">
+                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Part Name</label>
+                                        <input value={form.partName} onChange={e => setForm({...form, partName: e.target.value})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-3 text-sm" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Stock</label>
+                                        <input type="number" value={form.stock} onChange={e => setForm({...form, stock: parseInt(e.target.value)})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-3 text-sm" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Min Stock</label>
+                                        <input type="number" value={form.minStock} onChange={e => setForm({...form, minStock: parseInt(e.target.value)})} className="w-full bg-[#0d1c3d] border border-[#1a3360] rounded-xl px-4 py-3 text-sm" />
+                                    </div>
+                                </div>
+                                <div className="mt-8 flex gap-3">
+                                    <button onClick={() => setShowModal(false)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all">Cancel</button>
+                                    <button onClick={handleSave} className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl font-bold transition-all">Save Part</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        /* ─── Shipping Logs Module ─── */
+        function ShippingModule({ data, updateData, role }) {
+            return (
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                        <h3 className="serif text-xl">Logistics Expense Tracker</h3>
+                        <button className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold transition-all flex items-center gap-2">
+                             <Icon name="plus" size={16} /> New Log
+                        </button>
+                    </div>
+                    <div className="glass rounded-3xl overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-900/50">
+                                <tr>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Log ID</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Carrier</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Route</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Cost (AED)</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.shipping.map(s => (
+                                    <tr key={s.id} className="border-b border-slate-800/50">
+                                        <td className="px-6 py-4 font-mono text-indigo-400 text-xs">{s.id}</td>
+                                        <td className="px-6 py-4 font-bold">{s.carrier}</td>
+                                        <td className="px-6 py-4 text-xs font-bold text-slate-500">{s.origin} → {s.dest}</td>
+                                        <td className="px-6 py-4 font-black text-amber-500">AED {s.cost.toLocaleString()}</td>
+                                        <td className="px-6 py-4"><Badge status={s.status} /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
+        /* ─── Ticket Module ─── */
+        function TicketModule({ data, updateData, role }) {
+            return (
+                <div className="space-y-6">
+                    <div className="glass p-6 rounded-3xl border-sky-500/20 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-500">
+                                <Icon name="sync" size={24} className="animate-pulse-soft" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-sky-400">Outlook Integration Active</h4>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Polling Mail.Read & Tasks.ReadWrite every 5 mins</p>
+                            </div>
+                        </div>
+                        <button className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all">Manual Refresh</button>
+                    </div>
+
+                    <div className="glass rounded-3xl overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-900/50">
+                                <tr>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Ticket</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Priority</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Source</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Assignee</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.tickets.map(t => (
+                                    <tr key={t.id} className="border-b border-slate-800/50">
+                                        <td className="px-6 py-4">
+                                            <div className="text-sm font-bold truncate max-w-[200px]">{t.subject}</div>
+                                            <div className="text-[10px] text-slate-500 font-mono">{t.id}</div>
+                                        </td>
+                                        <td className="px-6 py-4"><Badge status={t.priority} /></td>
+                                        <td className="px-6 py-4 text-[10px] font-black text-indigo-400 uppercase tracking-widest">{t.source}</td>
+                                        <td className="px-6 py-4 text-xs font-bold text-slate-500">{t.assignee}</td>
+                                        <td className="px-6 py-4"><Badge status={t.status} /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
