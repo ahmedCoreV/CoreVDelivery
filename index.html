@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v1.0</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v1.1</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -14,6 +14,8 @@
 </script>
 <!-- Google Identity Services for Customer Reviews integration -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- SheetJS for Excel (.xlsx) import on Deliveries & Shipping -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -224,7 +226,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v1.0</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v1.1</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -233,17 +235,9 @@ td.actions{position:sticky;right:0;background:inherit}
       Sign in with Microsoft
     </button>
 
-    <div class="divider">or use offline demo</div>
-
-    <div class="login-field">
-      <label>Team member</label>
-      <select id="demoUser"></select>
-    </div>
-    <button class="login-btn" onclick="loginDemo()">Enter (offline demo)</button>
-
     <div class="login-hint">
-      Microsoft sign-in syncs to <b>OneDrive</b> across the team.<br>
-      Offline demo stores data on this device only.
+      Sign in with your <b>@core-velocity.com</b> account.<br>
+      Data syncs to <b>OneDrive</b> across the whole team.
       <a href="#" onclick="showSetup();return false;">Setup help →</a>
     </div>
   </div>
@@ -255,7 +249,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v1.0</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v1.1</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -290,8 +284,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.0
-   Build: v1.0 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.1
+   Build: v1.1 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -303,14 +297,14 @@ td.actions{position:sticky;right:0;background:inherit}
    Reuses the existing CoreV Azure app registration (tenant core-velocity.com).
    IMPORTANT: add the hosted URL of THIS file as an SPA redirect URI in the
    Azure app, and grant delegated Graph perms: Files.ReadWrite.All, User.Read,
-   Mail.Read (for Outlook ticket import). If clientId is blank → offline mode. */
+   If clientId is blank, sign-in is disabled. */
 const ONEDRIVE_CONFIG = {
   clientId   : 'cd1b7f5f-5ff9-4066-ab4f-06f270a94fcb',
   authority  : 'https://login.microsoftonline.com/core-velocity.com',
   redirectUri: window.location.origin + window.location.pathname,
   filePath   : '/OXEFIT/delivery-tracker.json',     // separate DB from sales tracker
   sharedDriveUser: 'demo@core-velocity.com',         // single shared drive for the whole team
-  scopes     : ['Files.ReadWrite.All', 'User.Read', 'Mail.Read']
+  scopes     : ['Files.ReadWrite.All', 'User.Read']
 };
 
 /* Google config for Customer Reviews module (optional). Reuses CoreV Google app. */
@@ -358,6 +352,7 @@ const COST_TYPES   = ['XS1','XP1','Accessory','Spare','Offloading','Other'];
 /* ─────────── STATE ─────────── */
 let CURRENT_USER = null, CURRENT_ROLE = 'viewer';
 let msalInstance = null, msalAccount = null, ONLINE = false, googleToken = null;
+let reviewSheetId = REVIEWS_CONFIG.sheetId || (function(){ try{ return localStorage.getItem('oxefit_review_sheet')||''; }catch(e){ return ''; } })();
 let activeView = 'dashboard';
 const LS_KEY = 'oxefit_delivery_v1';
 
@@ -504,20 +499,12 @@ function setSync(cls,txt){ const d=document.getElementById('syncDot'), t=documen
    BOOT + LOGIN
 ============================================================ */
 function boot(){
-  // populate offline demo user list
-  const sel=document.getElementById('demoUser');
-  sel.innerHTML = ALL_USERS.map(u=>`<option value="${u}">${u} — ${roleOf(u)==='admin'?'Admin':'Operational'}</option>`).join('');
   if(!loadLocal()) seedData();
   if(!ONEDRIVE_CONFIG.clientId){
     const b=document.getElementById('offlineBanner');
-    b.style.display='block'; b.textContent='⚠ Azure client ID not set — Microsoft sign-in disabled. Offline demo only.';
+    b.style.display='block'; b.textContent='⚠ Azure client ID not set — sign-in unavailable. Set ONEDRIVE_CONFIG.clientId.';
     document.getElementById('msLoginBtn').disabled=true;
   }
-}
-function loginDemo(){
-  CURRENT_USER=document.getElementById('demoUser').value;
-  CURRENT_ROLE=roleOf(CURRENT_USER); ONLINE=false;
-  enterApp(); setSync('','Offline'); updateTicketBadge();
 }
 function enterApp(){
   document.getElementById('loginScreen').style.display='none';
@@ -596,6 +583,9 @@ function renderDashboard(){
 
   const avgByModel=COST_TYPES.filter(t=>['XS1','XP1'].includes(t)).map(t=>{ const rows=state.costing.filter(c=>c.type===t); const avg=rows.length?rows.reduce((a,b)=>a+(+b.cost||0),0)/rows.length:0; return {label:'Avg '+t,value:Math.round(avg)}; });
 
+  // Equipment in-stock pulled live from Spares & Stock
+  const eqStock=['XS1-FLOW','XS1-PEAK','XP1'].map(p=>{ const s=state.stock.find(x=>(x.product||'').toUpperCase().replace(/\s+/g,'')===p.replace(/\s+/g,'')); return {label:p, qty:s?qtyInStock(s):0, min:s?s.min:0, found:!!s}; });
+
   document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
   <div class="view active">
     <div class="page-head">
@@ -610,6 +600,15 @@ function renderDashboard(){
       <div class="kpi gold"><div class="k-label">Open Tickets</div><div class="k-val">${openTickets}</div><div class="k-sub">${state.tickets.length} total logged</div></div>
       <div class="kpi red"><div class="k-label">Reorder Alerts</div><div class="k-val">${reorder.length}</div><div class="k-sub">items at/below min stock</div></div>
       <div class="kpi green"><div class="k-label">Total Shipping Cost</div><div class="k-val" style="font-size:24px">${money(totalCost)}</div><div class="k-sub">${state.costing.length} delivery costs</div></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px"><h3>🏋️ Equipment in stock</h3><div class="p-sub">Live units available — pulled from Spares &amp; Stock · <a href="#" onclick="go('spares');return false;">manage →</a></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+        ${eqStock.map(e=>{ const low=e.qty<=e.min; return `<div style="border:1px solid var(--border);border-radius:12px;padding:14px;background:${low?'#fef2f2':'#f8fafc'}">
+          <div class="k-label">${esc(e.label)}</div>
+          <div style="font-size:28px;font-weight:800;letter-spacing:-1px;color:${low?'#b91c1c':'#0f766e'}">${e.found?e.qty:'—'}<span style="font-size:13px;font-weight:600;color:var(--text-faint)"> units</span></div>
+          <div class="k-sub">${e.found?(low?`⚠ at/below min (${e.min})`:`min ${e.min} · healthy`):'not in inventory'}</div></div>`; }).join('')}
+      </div>
     </div>
 
     <div class="grid-2">
@@ -650,6 +649,7 @@ function renderDeliveries(){
       <div class="toolbar">
         <div class="search"><input id="delSearch" placeholder="Search receiver, model, ID…" value="${esc(delSearch)}" oninput="delSearch=this.value;renderActive()"></div>
         <button class="btn" onclick="exportCSV('deliveries')">⬇ CSV</button>
+        ${canEdit()?`<button class="btn" onclick="importDeliveriesExcel()">⬆ Import Excel</button>`:''}
         ${canEdit()?`<button class="btn primary" onclick="openDelivery()">＋ New delivery</button>`:''}
       </div>
     </div>
@@ -790,7 +790,7 @@ function renderShipping(){
   <div class="view active">
     <div class="page-head">
       <div><div class="page-title">Shipping &amp; Costs</div><div class="page-sub">Per-delivery cost log &amp; rolling averages</div></div>
-      <div class="toolbar"><button class="btn" onclick="exportCSV('costing')">⬇ CSV</button>${canEdit()?`<button class="btn primary" onclick="openCost()">＋ Cost entry</button>`:''}</div>
+      <div class="toolbar"><button class="btn" onclick="exportCSV('costing')">⬇ CSV</button>${canEdit()?`<button class="btn" onclick="importCostingExcel()">⬆ Import Excel</button>`:''}${canEdit()?`<button class="btn primary" onclick="openCost()">＋ Cost entry</button>`:''}</div>
     </div>
     <div class="kpi-grid">
       <div class="kpi green"><div class="k-label">Total Cost</div><div class="k-val" style="font-size:24px">${money(total)}</div><div class="k-sub">${c.length} entries</div></div>
@@ -819,7 +819,7 @@ function openCost(id){ if(!requireEdit())return; const x=id?state.costing.find(r
 function delCost(id){ if(!canDelete())return; state.costing=state.costing.filter(x=>x.id!==id); persist(); }
 
 /* ============================================================
-   VIEW: TICKETS  (+ Outlook import via Graph Mail.Read)
+   VIEW: TICKETS
 ============================================================ */
 function renderTickets(){
   const t=state.tickets;
@@ -829,7 +829,6 @@ function renderTickets(){
     <div class="page-head">
       <div><div class="page-title">Tickets</div><div class="page-sub">Complaint &amp; support tracking · CoreV ⇄ OxeFit</div></div>
       <div class="toolbar">
-        <button class="btn" onclick="importOutlook()" ${ONLINE?'':'disabled title="Sign in with Microsoft to import"'}>📧 Import from Outlook</button>
         <button class="btn" onclick="exportCSV('tickets')">⬇ CSV</button>
         ${canEdit()?`<button class="btn primary" onclick="openTicket()">＋ New ticket</button>`:''}
       </div>
@@ -860,27 +859,6 @@ function openTicket(id){ if(!requireEdit())return; const x=id?state.tickets.find
 function delTicket(id){ if(!canDelete())return; if(!confirm('Delete ticket?'))return; state.tickets=state.tickets.filter(x=>x.id!==id); persist(); }
 function replyOutlook(id){ const x=state.tickets.find(r=>r.id===id); const d=state.deliveries.find(dd=>dd.receiver&&x.client&&dd.receiver.toLowerCase().includes(x.client.toLowerCase().split(' ')[0])); const to=d?d.email:''; const subj=encodeURIComponent('['+x.code+'] '+x.client+' — support update'); const body=encodeURIComponent('Hello,\n\nRegarding: '+x.issue+'\n\nLatest update: '+(x.update||'')+'\n\nBest regards,\n'+(CURRENT_USER||'CoreV Team')); window.open('https://outlook.office.com/mail/deeplink/compose?to='+encodeURIComponent(to)+'&subject='+subj+'&body='+body,'_blank'); }
 
-/* Outlook import — reads recent inbox messages via Graph (Mail.Read) and lets you convert to tickets */
-async function importOutlook(){
-  if(!ONLINE){ toast('Sign in with Microsoft first','err'); return; }
-  modal('Import from Outlook','<div class="empty">Loading recent emails…</div>',null,true);
-  try{
-    const token=await getToken(['Mail.Read','User.Read']);
-    const res=await fetch("https://graph.microsoft.com/v1.0/me/messages?$top=25&$select=subject,from,receivedDateTime,bodyPreview&$orderby=receivedDateTime desc",{headers:{Authorization:'Bearer '+token}});
-    if(!res.ok) throw new Error('Graph '+res.status);
-    const data=await res.json(); const msgs=data.value||[];
-    document.getElementById('modalCard').querySelector('.modal-body').innerHTML = msgs.length? `<div class="p-sub" style="margin-bottom:10px">Select an email to convert into a ticket:</div>`+
-      msgs.map((m,i)=>`<div class="bar-row" style="align-items:flex-start"><div style="flex:1"><b>${esc(m.subject||'(no subject)')}</b><div class="muted" style="font-size:12px">${esc((m.from&&m.from.emailAddress&&m.from.emailAddress.name)||'')} · ${fmtDate(m.receivedDateTime)}</div><div class="note-cell" style="margin-top:3px">${esc((m.bodyPreview||'').slice(0,140))}</div></div>
-      <button class="mini-btn" onclick='ticketFromMail(${JSON.stringify({s:m.subject,n:(m.from&&m.from.emailAddress&&m.from.emailAddress.name)||"",b:(m.bodyPreview||"").slice(0,500),d:m.receivedDateTime}).replace(/'/g,"&#39;")})'>→ Ticket</button></div>`).join('')
-      : '<div class="empty">No recent emails found.</div>';
-  }catch(e){ console.warn(e); document.getElementById('modalCard').querySelector('.modal-body').innerHTML='<div class="empty">Could not read mailbox.<br><small>Ensure the Azure app has delegated <b>Mail.Read</b> consent.</small></div>'; }
-}
-function ticketFromMail(m){
-  if(!requireEdit())return;
-  state.tickets.push({id:uid(),code:nextTicketCode(),serial:'',client:m.n||m.s,date:(m.d||'').slice(0,10),issue:m.b||m.s,update:'[Imported from Outlook]',statusCoreV:'OPEN',statusOxe:'OPEN',reportedBy:'',assistedBy:'',remarks:''});
-  persist(); closeModal(); go('tickets'); toast('Ticket created from email','ok');
-}
-
 /* ============================================================
    VIEW: CUSTOMER REVIEWS  (Google integration)
 ============================================================ */
@@ -893,8 +871,8 @@ function renderReviews(){
     <div class="page-head">
       <div><div class="page-title">Customer Reviews</div><div class="page-sub">Post-delivery feedback · Google integration</div></div>
       <div class="toolbar">
-        <button class="btn" onclick="connectGoogle()">${googleToken?'✅ Google connected':'🔗 Connect Google'}</button>
-        ${googleToken&&REVIEWS_CONFIG.sheetId?`<button class="btn" onclick="importGoogleReviews()">⬇ Import sheet</button>`:''}
+        <button class="btn ${googleToken?'':'primary'}" onclick="connectGoogle()">${googleToken?'✅ Google connected':'🔗 Connect Google'}</button>
+        <button class="btn" onclick="fetchGoogleReviews()" ${googleToken?'':'disabled title="Connect Google first"'}>⬇ Fetch reviews</button>
         ${canEdit()?`<button class="btn primary" onclick="openReview()">＋ Review</button>`:''}
       </div>
     </div>
@@ -903,11 +881,18 @@ function renderReviews(){
       <div class="kpi green"><div class="k-label">5-star</div><div class="k-val">${r.filter(x=>+x.rating===5).length}</div></div>
       <div class="kpi red"><div class="k-label">≤3-star</div><div class="k-val">${r.filter(x=>+x.rating<=3).length}</div><div class="k-sub">needs attention</div></div>
     </div>
+    <div class="panel" style="margin-bottom:14px"><h3>🔗 Google Sheet source</h3>
+      <div class="p-sub">Paste the <b>Google Sheet ID</b> that holds your reviews (e.g. from a Google Form), then Fetch. Expected columns <b>A–E</b>: Date · Client · Rating(1-5) · Comment · Delivery ID (row 1 = headers).</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="reviewSheetInput" placeholder="Google Sheet ID" value="${esc(reviewSheetId)}" style="flex:1;min-width:240px;background:var(--input-bg);border:1.5px solid var(--border);border-radius:9px;padding:9px 11px">
+        <button class="btn" onclick="saveReviewSheet()">Save ID</button>
+      </div>
+      <div class="p-sub" style="margin-top:8px">The connected Google account must have <b>view access</b> to that sheet, and the project must enable the <b>Google Sheets API</b>. (Native Google <i>Business Profile</i> reviews need a separate Google API approval — a Sheet/Form is the practical v1.1 source.)</div>
+    </div>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Client</th><th>Rating</th><th>Source</th><th>Comment</th><th>Delivery</th><th>⚙</th></tr></thead><tbody>
       ${r.length?r.map(x=>`<tr><td>${fmtDate(x.date)}</td><td><b>${esc(x.client)}</b></td><td style="color:#f59e0b;font-size:15px">${stars(x.rating)}</td><td><span class="tag">${esc(x.source||'Manual')}</span></td><td class="note-cell">${esc(x.comment||'')}</td><td>${esc(x.deliveryId||'')}</td>
       <td class="actions">${canEdit()?`<button class="mini-btn" onclick="openReview('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delReview('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="7"><div class="empty">No reviews yet.</div></td></tr>`}
     </tbody></table></div>
-    <div class="panel" style="margin-top:14px"><h3>ℹ️ Google integration</h3><div class="p-sub">Connect a Google account to pull reviews from a shared Google Sheet (set <code>REVIEWS_CONFIG.sheetId</code>). Without a sheet ID, add reviews manually. This v1.0 uses read-only Google Sheets access.</div></div>
   </div>`);
 }
 function openReview(id){ if(!requireEdit())return; const x=id?state.reviews.find(r=>r.id===id):{id:uid(),date:new Date().toISOString().slice(0,10),rating:5,source:'Manual'};
@@ -921,21 +906,55 @@ function openReview(id){ if(!requireEdit())return; const x=id?state.reviews.find
     ()=>{const f=getForm();f.rating=Number(f.rating)||5; if(id)Object.assign(x,f);else state.reviews.unshift({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
 }
 function delReview(id){ if(!canDelete())return; state.reviews=state.reviews.filter(x=>x.id!==id); persist(); }
-function connectGoogle(){
-  if(typeof google==='undefined'||!google.accounts){ toast('Google library not loaded','err'); return; }
-  try{
-    const tc=google.accounts.oauth2.initTokenClient({client_id:REVIEWS_CONFIG.clientId,scope:REVIEWS_CONFIG.scope,
-      callback:(resp)=>{ if(resp.access_token){ googleToken=resp.access_token; toast('Google connected','ok'); renderActive(); } }});
-    tc.requestAccessToken();
-  }catch(e){ toast('Google sign-in failed — check client ID/origin','err'); }
+function saveReviewSheet(){
+  const v=(document.getElementById('reviewSheetInput').value||'').trim();
+  // accept a full URL and extract the ID
+  const m=/\/d\/([a-zA-Z0-9-_]+)/.exec(v);
+  reviewSheetId = m? m[1] : v;
+  try{ localStorage.setItem('oxefit_review_sheet', reviewSheetId); }catch(e){}
+  toast(reviewSheetId?'Sheet ID saved':'Cleared');
+  if(reviewSheetId && googleToken) fetchGoogleReviews();
 }
-async function importGoogleReviews(){
-  if(!googleToken||!REVIEWS_CONFIG.sheetId){ toast('Connect Google & set sheetId','err'); return; }
+function connectGoogle(){
+  if(typeof google==='undefined'||!google.accounts||!google.accounts.oauth2){ toast('Google library still loading — try again','err'); return; }
   try{
-    const res=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${REVIEWS_CONFIG.sheetId}/values/A2:F`,{headers:{Authorization:'Bearer '+googleToken}});
-    const data=await res.json(); (data.values||[]).forEach(row=>{ state.reviews.push({id:uid(),date:row[0]||'',client:row[1]||'',rating:Number(row[2])||5,source:'Google',comment:row[3]||'',deliveryId:row[4]||''}); });
-    persist(); toast('Imported '+((data.values||[]).length)+' reviews','ok');
-  }catch(e){ toast('Import failed','err'); }
+    const tc=google.accounts.oauth2.initTokenClient({
+      client_id:REVIEWS_CONFIG.clientId, scope:REVIEWS_CONFIG.scope,
+      callback:(resp)=>{
+        if(resp && resp.access_token){ googleToken=resp.access_token; toast('Google connected','ok'); renderActive();
+          if(reviewSheetId) fetchGoogleReviews(); else toast('Now paste your Google Sheet ID & Fetch');
+        } else { toast('Google did not return a token','err'); }
+      }
+    });
+    tc.requestAccessToken();
+  }catch(e){ console.warn(e); toast('Google sign-in failed — check client ID & authorized origin','err'); }
+}
+async function fetchGoogleReviews(){
+  if(!googleToken){ connectGoogle(); return; }
+  if(!reviewSheetId){ toast('Enter a Google Sheet ID first','err'); return; }
+  toast('Fetching from Google…');
+  try{
+    const url=`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(reviewSheetId)}/values/A2:E1000`;
+    const res=await fetch(url,{headers:{Authorization:'Bearer '+googleToken}});
+    if(!res.ok){
+      let why=''; try{ const j=await res.json(); why=(j.error&&j.error.message)||''; }catch(e){}
+      if(res.status===403) throw new Error('Access denied — share the sheet with your Google account & enable the Sheets API. '+why);
+      if(res.status===404) throw new Error('Sheet not found — check the Sheet ID.');
+      if(res.status===401){ googleToken=null; throw new Error('Session expired — reconnect Google.'); }
+      throw new Error(why||('Sheets API '+res.status));
+    }
+    const data=await res.json(); const vals=data.values||[];
+    let added=0;
+    vals.forEach(row=>{
+      const date=row[0]||'', client=row[1]||''; if(!client && !date) return;
+      const key=(date+'|'+client).toLowerCase();
+      if(state.reviews.some(x=>((x.date||'')+'|'+(x.client||'')).toLowerCase()===key && x.source==='Google')) return; // dedupe
+      state.reviews.unshift({id:uid(),date:xlDate(date),client,rating:Number(row[2])||5,source:'Google',comment:row[3]||'',deliveryId:row[4]||''});
+      added++;
+    });
+    persist(); renderActive();
+    toast(added?('Imported '+added+' new reviews'):'No new reviews found','ok');
+  }catch(e){ console.warn(e); toast(String(e.message||e),'err'); renderActive(); }
 }
 
 /* ============================================================
@@ -956,6 +975,83 @@ function getForm(){ const o={}; document.querySelectorAll('#modalCard [name]').f
 document.getElementById('modalBg').addEventListener('click',e=>{ if(e.target.id==='modalBg') closeModal(); });
 
 /* ============================================================
+   EXCEL IMPORT  (SheetJS) — Deliveries & Shipping
+============================================================ */
+function pickExcel(cb){
+  if(typeof XLSX==='undefined'){ toast('Excel library not loaded','err'); return; }
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='.xlsx,.xls,.csv';
+  inp.onchange=e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
+    rd.onload=ev=>{ try{ const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:true}); cb(wb); }
+      catch(err){ console.warn(err); toast('Could not read the Excel file','err'); } };
+    rd.readAsArrayBuffer(f); };
+  inp.click();
+}
+function xlDate(v){ if(!v&&v!==0) return ''; if(v instanceof Date) return v.toISOString().slice(0,10); const d=new Date(v); return isNaN(d)?String(v):d.toISOString().slice(0,10); }
+function pickFirst(r,keys){ for(const k of keys){ if(r[k]!=null && r[k]!=='') return r[k]; } return ''; }
+
+function importDeliveriesExcel(){
+  if(!requireEdit()) return;
+  pickExcel(wb=>{
+    const sn = wb.SheetNames.find(n=>/stock movement/i.test(n)) || wb.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], {defval:''});
+    let added=0, updated=0;
+    rows.forEach(r=>{
+      const id = String(pickFirst(r,['Delivery Note ID','Delivery Note Id','ID'])||'').trim();
+      const receiver = pickFirst(r,["Receiver's Name",'Receiver','Receiver Name']);
+      if(!id && !receiver) return; // skip blanks/summary rows
+      const rec={
+        id: id || nextDeliveryId(),
+        receiver, contact:String(pickFirst(r,['Contact Number','Contact'])||''),
+        email: pickFirst(r,['Email']),
+        address: pickFirst(r,['Address']),
+        region: pickFirst(r,['Region']),
+        deliveryDate: xlDate(pickFirst(r,['Delivery Date'])),
+        deliveryTime: pickFirst(r,['DELIVERY TIME','Delivery Time','Time']),
+        closedDate: xlDate(pickFirst(r,['Closed Date'])),
+        status: (pickFirst(r,['Current Status','Status'])||'OPEN').toString().toUpperCase(),
+        model: pickFirst(r,['Model Delivered','Model']),
+        salesPerson: pickFirst(r,['Sales Person','SALES PERSON']),
+        salesCoach: pickFirst(r,['SALES COACH','Sales Coach']),
+        warrantyStart: xlDate(pickFirst(r,['Warranty Start Date','Warranty Start'])),
+        warrantyMonths: Number(pickFirst(r,['Warranty Period (Months)','Months','Warranty Period']))||'',
+        notes: pickFirst(r,['[DATE, NOTES]','Notes']),
+        successCall: pickFirst(r,['CUSTOMER SUCCESS CALL','Customer Call','Customer Success Call']),
+        coachDelivered: pickFirst(r,['SALES COACH DELIVERED','Coach Delivered']),
+        flooring: pickFirst(r,['Did we offer flooring? (YES or NO)','Flooring']),
+        serialNo: String(pickFirst(r,['Serial No.','Serial'])||''),
+        reviewForm: pickFirst(r,['Shared review form','Review Form']),
+        freeSession: pickFirst(r,['Free session/demo','Free Session']),
+        locked:false
+      };
+      const ix=state.deliveries.findIndex(d=>d.id===rec.id);
+      if(ix>=0){ Object.assign(state.deliveries[ix], rec); updated++; } else { state.deliveries.push(rec); added++; }
+    });
+    persist(); go('deliveries');
+    toast(`Imported: ${added} new, ${updated} updated`, 'ok');
+  });
+}
+function importCostingExcel(){
+  if(!requireEdit()) return;
+  pickExcel(wb=>{
+    const sn = wb.SheetNames.find(n=>/costing|cost|shipping/i.test(n)) || wb.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], {defval:''});
+    let n=0;
+    rows.forEach(r=>{
+      const noteId=String(pickFirst(r,['Delivery Note ID','Delivery Note Id'])||'').trim();
+      const receiver=pickFirst(r,["Receiver's Name",'Receiver']);
+      const cost=Number(pickFirst(r,['Costing','Cost']));
+      if(!noteId && !receiver && !cost) return;
+      state.costing.push({ id:uid(), noteId, receiver, type:pickFirst(r,['Type'])||'',
+        address:pickFirst(r,['Address'])||'', date:xlDate(pickFirst(r,['Delivery Date'])),
+        salesPerson:pickFirst(r,['Sales Person'])||'', cost:cost||0 });
+      n++;
+    });
+    persist(); go('shipping');
+    toast(`Imported ${n} cost rows`, 'ok');
+  });
+}
+
+/* ============================================================
    EXPORT + SETUP
 ============================================================ */
 function exportCSV(which){
@@ -971,7 +1067,7 @@ function showSetup(){
    redirect URI = the URL where you host THIS file
    e.g. https://yourname.github.io/delivery_tracker.html
 3. API permissions → Microsoft Graph → Delegated:
-   Files.ReadWrite.All · User.Read · Mail.Read  → Grant consent
+   Files.ReadWrite.All · User.Read  → Grant consent
 4. Copy the Application (client) ID into
    ONEDRIVE_CONFIG.clientId near the top of the script
 5. Host the file (GitHub Pages / SharePoint / web server)
