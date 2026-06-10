@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v1.6</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v1.7</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -228,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v1.6</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v1.7</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -251,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v1.6</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v1.7</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -289,8 +288,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.6
-   Build: v1.6 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.7
+   Build: v1.7 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -984,37 +983,67 @@ function openStock(id){ if(!requireEdit('spares'))return; const s=id?state.stock
     <div class="fld"><label>Minimum stock level</label><input type="number" name="min" value="${s.min||0}"></div></div>`,
     ()=>{const f=getForm();['received','moved','min'].forEach(k=>f[k]=Number(f[k])||0); if(id)Object.assign(s,f);else state.stock.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
 }
+/* ── automatic stock reduction helpers ──
+   adjustStockMoved(name, delta): moves `delta` units OUT of the named stock item
+   (delta>0 reduces in-stock, delta<0 restores). Returns the units actually applied
+   so the issue record can store its stockDelta for clean edit/delete reconciliation. */
+function findStock(name){ if(!name) return null; const n=String(name).trim().toLowerCase(); return state.stock.find(s=>(s.product||'').trim().toLowerCase()===n); }
+function adjustStockMoved(name,delta){ const s=findStock(name); if(!s) return 0; s.moved=Math.max(0,(Number(s.moved)||0)+delta); return delta; }
+
 function openMove(id){ if(!requireEdit('spares'))return; const s=state.stock.find(x=>x.id===id);
   modal('Stock movement — '+esc(s.product),`<div class="fld"><label>Quantity to move out (current in stock: ${qtyInStock(s)})</label><input type="number" name="qty" value="1" min="1"></div>
     <div class="fld" style="margin-top:12px"><label>Issued to (client / note, optional → adds to Issued log)</label><input name="client"></div>
-    <div class="fld" style="margin-top:12px"><label>Region</label><select name="region">${REGIONS.map(r=>`<option>${r}</option>`).join('')}</select></div>`,
+    <div class="fld" style="margin-top:12px"><label>Region</label><select name="region">${REGIONS.map(r=>`<option>${r}</option>`).join('')}</select></div>
+    <div class="hint" style="margin-top:10px">Moving out automatically reduces this item's in-stock count.</div>`,
     ()=>{const f=getForm();const q=Number(f.qty)||0; s.moved=(Number(s.moved)||0)+q;
-      if(f.client) state.accessories.unshift({id:uid(),date:new Date().toISOString().slice(0,10),client:f.client,region:f.region,item:s.product,qty:q});
-      persist(); closeModal(); toast('Moved '+q+' units','ok');});
+      if(f.client) state.accessories.unshift({id:uid(),date:new Date().toISOString().slice(0,10),client:f.client,region:f.region,item:s.product,qty:q,stockDelta:q,_ts:Date.now()});
+      persist(); closeModal(); toast('Moved '+q+' units out of stock','ok');});
 }
 function delStock(id){ if(!canDelete())return; if(!confirm('Delete item?'))return; deleteFrom('stock',id); }
 function openIssue(id){ if(!requireEdit('spares'))return; const a=id?state.accessories.find(x=>x.id===id):{id:uid(),date:new Date().toISOString().slice(0,10),region:'Dubai',qty:1};
+  const stockNames=[...new Set(state.stock.map(s=>s.product))];
   modal(id?'Edit issued item':'Issue accessory / spare',`<div class="form-grid">
     <div class="fld"><label>Date</label><input type="date" name="date" value="${esc(a.date||'')}"></div>
     <div class="fld"><label>Client name</label><input name="client" value="${esc(a.client||'')}"></div>
     <div class="fld"><label>Region</label><select name="region">${REGIONS.map(r=>`<option ${a.region===r?'selected':''}>${r}</option>`).join('')}</select></div>
-    <div class="fld"><label>Accessory / Sparepart</label><input name="item" value="${esc(a.item||'')}"></div>
-    <div class="fld"><label>Quantity</label><input type="number" name="qty" value="${a.qty||1}"></div></div>`,
-    ()=>{const f=getForm();f.qty=Number(f.qty)||1; if(id)Object.assign(a,f);else state.accessories.unshift({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+    <div class="fld"><label>Accessory / Sparepart</label><input name="item" list="stockNames" value="${esc(a.item||'')}" oninput="issueStockHint(this)"><datalist id="stockNames">${stockNames.map(n=>`<option>${esc(n)}</option>`).join('')}</datalist></div>
+    <div class="fld"><label>Quantity</label><input type="number" name="qty" value="${a.qty||1}" min="1" oninput="issueStockHint()"></div>
+    <div class="fld full"><div id="issueHint" class="hint"></div></div></div>`,
+    ()=>{const f=getForm();f.qty=Number(f.qty)||1;
+      if(id){ // reconcile: restore old deduction, apply new
+        adjustStockMoved(a.item, -(Number(a.stockDelta)||0));
+        const nd=adjustStockMoved(f.item, +f.qty);
+        Object.assign(a,f,{stockDelta:nd,_ts:Date.now()});
+      } else {
+        const nd=adjustStockMoved(f.item, +f.qty);
+        state.accessories.unshift({id:uid(),...f,stockDelta:nd,_ts:Date.now()});
+      }
+      persist(); closeModal(); toast('Saved — stock updated','ok');});
+  setTimeout(()=>issueStockHint(),20);
 }
-function delIssue(id){ if(!canDelete())return; deleteFrom('accessories',id); }
+function issueStockHint(){ const f=document.getElementById('modalCard'); if(!f) return; const item=(f.querySelector('[name="item"]')||{}).value; const qty=Number((f.querySelector('[name="qty"]')||{}).value)||0; const el=document.getElementById('issueHint'); if(!el) return;
+  const s=findStock(item);
+  if(!s){ el.innerHTML=item?`No matching stock item “${esc(item)}” — issuing this won't change any stock count.`:'Matching a stock item by name will auto-reduce its in-stock count.'; el.style.color='var(--text-faint)'; return; }
+  const after=qtyInStock(s)-qty; el.innerHTML=`Will reduce <b>${esc(s.product)}</b>: ${qtyInStock(s)} → <b style="color:${after<=s.min?'#b91c1c':'#0f766e'}">${after}</b> in stock${after<=s.min?' ⚠ at/below min':''}.`; el.style.color='var(--text-muted)';
+}
+function delIssue(id){ if(!canDelete())return; const a=state.accessories.find(x=>x.id===id); if(a){ adjustStockMoved(a.item, -(Number(a.stockDelta)||0)); } deleteFrom('accessories',id); toast('Deleted — stock restored'); }
 
 /* ============================================================
    VIEW: SHIPPING & COSTS  (COSTING log)
 ============================================================ */
+function costParts(x){ const tr=+x.truck||0, lb=+x.labor||0, pt=+x.petrol||0, rc=+x.rentcar||0, ot=+x.other||0; return {tr,lb,pt,rc,ot,sum:tr+lb+pt+rc+ot}; }
+function costTotal(x){ const p=costParts(x); return p.sum||(+x.cost||0); }  // fall back to legacy single cost
 function renderShipping(){
   const c=state.costing;
-  const total=c.reduce((a,b)=>a+(+b.cost||0),0);
-  const avg=k=>{const r=c.filter(x=>x.type===k);return r.length?Math.round(r.reduce((a,b)=>a+(+b.cost||0),0)/r.length):0;};
+  const total=c.reduce((a,b)=>a+costTotal(b),0);
+  const avg=k=>{const r=c.filter(x=>x.type===k);return r.length?Math.round(r.reduce((a,b)=>a+costTotal(b),0)/r.length):0;};
+  const catTotal=key=>c.reduce((a,b)=>a+(+b[key]||0),0);
+  const n0=v=>v?Number(v).toLocaleString('en-AE'):'<span class="muted">—</span>';
+  const cats=[['truck','Truck','#2563eb'],['labor','Labor','#0d9488'],['petrol','Petrol','#f59e0b'],['rentcar','Rent-a-car','#8b5cf6']];
   document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
   <div class="view active">
     <div class="page-head">
-      <div><div class="page-title">Shipping &amp; Costs</div><div class="page-sub">Per-delivery cost log &amp; rolling averages</div></div>
+      <div><div class="page-title">Shipping &amp; Costs</div><div class="page-sub">Per-delivery cost log with truck, labor, petrol &amp; rent-a-car breakdown</div></div>
       <div class="toolbar"><button class="btn" onclick="exportCSV('costing')">⬇ CSV</button>${canEditModule('shipping')?`<button class="btn" onclick="importCostingExcel()">⬆ Import Excel</button>`:''}${canEditModule('shipping')?`<button class="btn primary" onclick="openCost()">＋ Cost entry</button>`:''}</div>
     </div>
     <div class="kpi-grid">
@@ -1023,32 +1052,43 @@ function renderShipping(){
       <div class="kpi teal"><div class="k-label">Avg cost / XP1</div><div class="k-val" style="font-size:24px">${money(avg('XP1'))}</div></div>
       <div class="kpi gold"><div class="k-label">Avg offloading</div><div class="k-val" style="font-size:24px">${money(avg('Offloading'))}</div></div>
     </div>
-    <div class="table-wrap"><table><thead><tr><th>Delivery Note ID</th><th>Receiver</th><th>Type</th><th>Address</th><th>Delivery Date</th><th>Sales Person</th><th>Costing</th><th>⚙</th></tr></thead><tbody>
-      ${c.length?c.map(x=>`<tr><td><b>${esc(x.noteId)}</b></td><td>${esc(x.receiver)}</td><td><span class="tag">${esc(x.type)}</span></td><td class="note-cell">${esc(x.address)}</td><td>${fmtDate(x.date)}</td><td>${esc(x.salesPerson)}</td><td><b>${money(x.cost)}</b></td>
-      <td class="actions">${canEditModule('shipping')?`<button class="mini-btn" onclick="openCost('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delCost('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="8"><div class="empty">No cost entries.</div></td></tr>`}
+    <div class="panel" style="margin-bottom:16px"><h3>💸 Expense breakdown by category</h3><div class="p-sub">Where the shipping budget goes</div>
+      ${barChart(cats.map(([k,l,col])=>({label:l,value:catTotal(k),color:col})))}
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Delivery Note ID</th><th>Receiver</th><th>Type</th><th>Address</th><th>Date</th><th>Sales Person</th><th>Truck</th><th>Labor</th><th>Petrol</th><th>Rent-a-car</th><th>Other</th><th>Total</th><th>⚙</th></tr></thead><tbody>
+      ${c.length?c.map(x=>{const p=costParts(x);return `<tr><td><b>${esc(x.noteId)}</b></td><td>${esc(x.receiver)}</td><td><span class="tag">${esc(x.type)}</span></td><td class="note-cell">${esc(x.address)}</td><td>${fmtDate(x.date)}</td><td>${esc(x.salesPerson)}</td>
+      <td>${n0(p.tr)}</td><td>${n0(p.lb)}</td><td>${n0(p.pt)}</td><td>${n0(p.rc)}</td><td>${n0(p.ot)}</td><td><b>${money(costTotal(x))}</b></td>
+      <td class="actions">${canEditModule('shipping')?`<button class="mini-btn" onclick="openCost('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delCost('${x.id}')">✕</button>`:''}</td></tr>`;}).join(''):`<tr><td colspan="13"><div class="empty">No cost entries.</div></td></tr>`}
     </tbody></table></div>
   </div>`);
 }
 function openCost(id){ if(!requireEdit('shipping'))return; const x=id?state.costing.find(r=>r.id===id):{id:uid(),type:'XS1',date:new Date().toISOString().slice(0,10)};
   const opts=state.deliveries.map(d=>`<option value="${esc(d.id)}" ${x.noteId===d.id?'selected':''}>${esc(d.id)} — ${esc(d.receiver||'')}</option>`).join('');
+  const tr=+x.truck||0, lb=+x.labor||0, pt=+x.petrol||0, rc=+x.rentcar||0;
+  let ot=x.other; if(ot==null){ ot=(+x.cost||0)-(tr+lb+pt+rc); if(ot<0) ot=0; }  // migrate legacy single cost into "Other"
   modal(id?'Edit cost entry':'New cost entry',`<div class="form-grid">
-    <div class="fld"><label>Order / Delivery Note ID</label><select name="noteId" onchange="costFill(this)"><option value="">— select order —</option>${opts}${x.noteId&&!state.deliveries.some(d=>d.id===x.noteId)?`<option value="${esc(x.noteId)}" selected>${esc(x.noteId)} (custom)</option>`:''}</select><div class="hint">The same order ID can appear in multiple cost rows (e.g. delivery + offloading + accessory).</div></div>
+    <div class="fld"><label>Order / Delivery Note ID</label><select name="noteId" onchange="costFill(this)"><option value="">— select order —</option>${opts}${x.noteId&&!state.deliveries.some(d=>d.id===x.noteId)?`<option value="${esc(x.noteId)}" selected>${esc(x.noteId)} (custom)</option>`:''}</select><div class="hint">The same order ID can appear in multiple cost rows.</div></div>
     <div class="fld"><label>Receiver</label><input name="receiver" value="${esc(x.receiver||'')}"></div>
     <div class="fld"><label>Type</label><select name="type">${COST_TYPES.map(t=>`<option ${x.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
     <div class="fld"><label>Address / Region</label><input name="address" value="${esc(x.address||'')}"></div>
     <div class="fld"><label>Delivery date</label><input type="date" name="date" value="${esc(x.date||'')}"></div>
     <div class="fld"><label>Sales person</label><select name="salesPerson">${['',...SALES_PEOPLE].map(s=>`<option ${x.salesPerson===s?'selected':''}>${s}</option>`).join('')}</select></div>
-    <div class="fld"><label>Costing (AED)</label><input type="number" name="cost" value="${x.cost||0}"></div></div>`,
-    ()=>{const f=getForm();f.cost=Number(f.cost)||0;f._ts=Date.now(); if(id)Object.assign(x,f);else state.costing.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+    <div class="fld"><label>🚚 Truck charges (AED)</label><input type="number" name="truck" value="${tr}" oninput="recalcCost()"></div>
+    <div class="fld"><label>👷 Labor charges (AED)</label><input type="number" name="labor" value="${lb}" oninput="recalcCost()"></div>
+    <div class="fld"><label>⛽ Petrol expenses (AED)</label><input type="number" name="petrol" value="${pt}" oninput="recalcCost()"></div>
+    <div class="fld"><label>🚗 Rent-a-car expenses (AED)</label><input type="number" name="rentcar" value="${rc}" oninput="recalcCost()"></div>
+    <div class="fld"><label>Other / misc (AED)</label><input type="number" name="other" value="${ot}" oninput="recalcCost()"></div>
+    <div class="fld" style="display:flex;align-items:flex-end"><div style="width:100%;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:9px 12px"><div class="k-label" style="color:#047857">Total costing</div><div id="costTotalVal" style="font-size:22px;font-weight:800;color:#065f46">${money(tr+lb+pt+rc+ot)}</div></div></div>
+  </div>`,
+    ()=>{const f=getForm(); ['truck','labor','petrol','rentcar','other'].forEach(k=>f[k]=Number(f[k])||0); f.cost=f.truck+f.labor+f.petrol+f.rentcar+f.other; f._ts=Date.now(); if(id)Object.assign(x,f);else state.costing.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
 }
+function recalcCost(){ const f=document.getElementById('modalCard'); if(!f) return; const g=n=>Number((f.querySelector(`[name="${n}"]`)||{}).value)||0; const t=g('truck')+g('labor')+g('petrol')+g('rentcar')+g('other'); const el=f.querySelector('#costTotalVal'); if(el) el.textContent=money(t); }
 function costFill(selEl){ const d=state.deliveries.find(x=>x.id===selEl.value); if(!d) return; const form=selEl.closest('#modalCard');
-  const set=(n,v)=>{ const el=form.querySelector(`[name="${n}"]`); if(el&&!el.value) el.value=v; };
-  // always refresh receiver/address; only set type if blank
   form.querySelector('[name="receiver"]').value=d.receiver||'';
   form.querySelector('[name="address"]').value=d.region||d.address||'';
   if(d.salesPerson){ const sp=form.querySelector('[name="salesPerson"]'); if(sp) sp.value=d.salesPerson; }
-  const ty=form.querySelector('[name="type"]'); if(ty){ const guess=(d.model||'').toUpperCase().startsWith('XP1')?'XP1':'XS1'; ty.value=guess; }
-  if(d.deliveryDate){ const dt=form.querySelector('[name="date"]'); if(dt&&!dt.value) dt.value=d.deliveryDate; }
+  const ty=form.querySelector('[name="type"]'); if(ty){ ty.value=(d.model||'').toUpperCase().startsWith('XP1')?'XP1':'XS1'; }
+  const dt=form.querySelector('[name="date"]'); if(dt&&!dt.value&&d.deliveryDate) dt.value=d.deliveryDate;
 }
 function delCost(id){ if(!canDelete())return; deleteFrom('costing',id); toast('Deleted'); }
 
@@ -1417,11 +1457,18 @@ function importCostingExcel(){
     rows.forEach(r=>{
       const noteId=String(pickFirst(r,['Delivery Note ID','Delivery Note Id'])||'').trim();
       const receiver=pickFirst(r,["Receiver's Name",'Receiver']);
-      const cost=Number(pickFirst(r,['Costing','Cost']));
+      const truck=Number(pickFirst(r,['Truck charges','Truck']))||0;
+      const labor=Number(pickFirst(r,['Labor charges','Labour charges','Labor','Labour']))||0;
+      const petrol=Number(pickFirst(r,['Petrol expenses','Petrol','Fuel']))||0;
+      const rentcar=Number(pickFirst(r,['Rent-a-car expenses','Rent a car','Rent-a-car','Car rental']))||0;
+      const legacy=Number(pickFirst(r,['Costing','Cost']))||0;
+      const breakdown=truck+labor+petrol+rentcar;
+      const other=breakdown? Math.max(0,legacy-breakdown) : legacy; // if only a single Costing column, treat as Other
+      const cost=breakdown+other;
       if(!noteId && !receiver && !cost) return;
       state.costing.push({ id:uid(), noteId, receiver, type:pickFirst(r,['Type'])||'',
         address:pickFirst(r,['Address'])||'', date:xlDate(pickFirst(r,['Delivery Date'])),
-        salesPerson:pickFirst(r,['Sales Person'])||'', cost:cost||0 });
+        salesPerson:pickFirst(r,['Sales Person'])||'', truck, labor, petrol, rentcar, other, cost, _ts:Date.now() });
       n++;
     });
     persist(); go('shipping');
