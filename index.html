@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v1.7</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v1.8</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v1.7</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v1.8</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v1.7</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v1.8</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -271,6 +271,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="nav-item active" data-view="dashboard" onclick="go('dashboard')"><span class="nav-ico">📊</span><span class="lbl">Executive Dashboard</span></div>
       <div class="nav-item" data-view="deliveries" onclick="go('deliveries')"><span class="nav-ico">🚚</span><span class="lbl">Deliveries</span></div>
       <div class="nav-item" data-view="spares" onclick="go('spares')"><span class="nav-ico">📦</span><span class="lbl">Spares &amp; Stock</span></div>
+      <div class="nav-item" data-view="inbound" onclick="go('inbound')"><span class="nav-ico">🛳️</span><span class="lbl">Inbound Shipments</span></div>
       <div class="nav-item" data-view="shipping" onclick="go('shipping')"><span class="nav-ico">💰</span><span class="lbl">Shipping &amp; Costs</span></div>
       <div class="nav-item" data-view="logs" onclick="go('logs')"><span class="nav-ico">📷</span><span class="lbl">Logs &amp; Images</span></div>
       <div class="nav-item" data-view="events" onclick="go('events')"><span class="nav-ico">🎪</span><span class="lbl">Event Setup</span></div>
@@ -288,8 +289,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.7
-   Build: v1.7 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.8
+   Build: v1.8 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -360,6 +361,9 @@ const OXEFIT_TEAM  = ['CULLY','PETER','QA / ENGINEERING','N/A'];
 const COST_TYPES   = ['XS1','XP1','Accessory','Spare','Offloading','Other'];
 const EVENT_STATUS = ['Planned','Shipped Out','On-site','Returned','Closed','Cancelled'];
 const EVENT_UNITS  = ['XS1 FLOW','XS1 FLOW+','XS1 PEAK','XS1 PEAK+','XP1','Multiple','Accessories only'];
+const SHIP_METHODS   = ['Air','Sea','Courier'];
+const INBOUND_STATUS = ['Ordered','Shipped','In Transit','Customs Clearance','Received'];
+const ORIGIN_COUNTRIES = ['USA','China','Germany','UK','UAE','India','Other'];
 
 /* ─────────── STATE ─────────── */
 let CURRENT_USER = null, CURRENT_ROLE = 'viewer';
@@ -368,8 +372,8 @@ let reviewSheetId = REVIEWS_CONFIG.sheetId || (function(){ try{ return localStor
 let activeView = 'dashboard';
 const LS_KEY = 'oxefit_delivery_v1';
 
-let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], logs:[], events:[], tombstones:{}, meta:{updated:null,by:null,logo:null} };
-const COLLECTIONS = ['deliveries','stock','accessories','costing','tickets','reviews','logs','events'];
+let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], logs:[], events:[], inbound:[], tombstones:{}, meta:{updated:null,by:null,logo:null} };
+const COLLECTIONS = ['deliveries','stock','accessories','costing','tickets','reviews','logs','events','inbound'];
 
 /* ─────────── SEED DATA (sample rows from your Excel template) ─────────── */
 function seedData(){
@@ -420,6 +424,11 @@ function seedData(){
     {id:'EVT-00001',eventName:'Dubai Fitness Championship',venue:'Dubai World Trade Centre',region:'Dubai',startDate:'2026-03-12',endDate:'2026-03-15',unitType:'XS1 PEAK+',quantity:2,serialNo:'XS1P-2210, XS1P-2211',accessories:'2× Bench, Barbell set',shipOutDate:'2026-03-10',shipInDate:'2026-03-17',owner:'AHMED',status:'Closed',specialRequest:'Branded floor mats + standby technician',problemReported:'Minor cable wear on unit 2 — replaced on-site',outcome:'High footfall; 6 qualified leads',cost:3500,_ts:Date.now()}
   ];
   state.tombstones = {};
+  state.inbound = [
+    {id:uid(),po:'PO-2026-014',item:'XS1 PEAK+ units',qty:10,supplier:'OxeFit Inc.',country:'USA',method:'Sea',departDate:'2026-05-02',etaDate:'2026-06-18',actualDate:'',status:'In Transit',remarks:'Container booked via Jebel Ali; broker notified.',_ts:Date.now()},
+    {id:uid(),po:'PO-2026-021',item:'Spare parts kit (motors, loadcells, cables)',qty:1,supplier:'OxeFit Inc.',country:'USA',method:'Air',departDate:'2026-06-04',etaDate:'2026-06-09',actualDate:'',status:'Customs Clearance',remarks:'Awaiting DG paperwork for battery items.',_ts:Date.now()},
+    {id:uid(),po:'PO-2026-008',item:'Accessory trees & benches',qty:40,supplier:'OxeFit Inc.',country:'China',method:'Sea',departDate:'2026-03-15',etaDate:'2026-05-10',actualDate:'2026-05-12',status:'Received',remarks:'2 benches arrived with minor scuffs — logged as spares.',_ts:Date.now()}
+  ];
   state.meta = {updated:new Date().toISOString(), by:'seed', logo:null};
 }
 
@@ -742,7 +751,7 @@ function go(view){
   renderActive();
 }
 function renderActive(){
-  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,shipping:renderShipping,logs:renderLogs,events:renderEvents,tickets:renderTickets,reviews:renderReviews}[activeView];
+  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,inbound:renderInbound,shipping:renderShipping,logs:renderLogs,events:renderEvents,tickets:renderTickets,reviews:renderReviews}[activeView];
   if(r) document.getElementById('mainContent').innerHTML='', r();
   updateTicketBadge();
 }
@@ -1027,6 +1036,72 @@ function issueStockHint(){ const f=document.getElementById('modalCard'); if(!f) 
   const after=qtyInStock(s)-qty; el.innerHTML=`Will reduce <b>${esc(s.product)}</b>: ${qtyInStock(s)} → <b style="color:${after<=s.min?'#b91c1c':'#0f766e'}">${after}</b> in stock${after<=s.min?' ⚠ at/below min':''}.`; el.style.color='var(--text-muted)';
 }
 function delIssue(id){ if(!canDelete())return; const a=state.accessories.find(x=>x.id===id); if(a){ adjustStockMoved(a.item, -(Number(a.stockDelta)||0)); } deleteFrom('accessories',id); toast('Deleted — stock restored'); }
+
+/* ============================================================
+   VIEW: INBOUND SHIPMENTS  (procurement from US / overseas)
+============================================================ */
+let inFilter='ALL', inSearch='';
+function inboundPill(s){ const m={'Received':'green','In Transit':'blue','Customs Clearance':'purple','Shipped':'amber','Ordered':'grey'}; return `<span class="pill ${m[s]||'grey'}">${esc(s||'—')}</span>`; }
+function renderInbound(){
+  const all=state.inbound||[];
+  const today=new Date().toISOString().slice(0,10);
+  const isOpen=r=>r.status!=='Received';
+  const inTransit=all.filter(r=>['Shipped','In Transit','Customs Clearance'].includes(r.status)).length;
+  const arriving=all.filter(r=>isOpen(r)&&r.etaDate&&r.etaDate>=today&&(new Date(r.etaDate)-new Date())/864e5<=14).length;
+  const overdue=all.filter(r=>isOpen(r)&&r.etaDate&&r.etaDate<today).length;
+  let rows=all.slice();
+  if(inFilter!=='ALL') rows=rows.filter(r=>r.status===inFilter);
+  if(inSearch){ const q=inSearch.toLowerCase(); rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q)); }
+  const cols=['PO #','Item description','Qty','Supplier / Vendor','Origin','Method','Departure','Expected','Actual','Status','Remarks'];
+  document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
+  <div class="view active">
+    <div class="page-head">
+      <div><div class="page-title">Inbound Shipments</div><div class="page-sub">Expected shipping &amp; delivery schedule for machines and spare parts ordered overseas</div></div>
+      <div class="toolbar">
+        <div class="search"><input placeholder="Search PO, item, supplier…" value="${esc(inSearch)}" oninput="inSearch=this.value;renderActive()"></div>
+        <button class="btn" onclick="exportCSV('inbound')">⬇ CSV</button>
+        ${canEditModule('inbound')?`<button class="btn primary" onclick="openInbound()">＋ New shipment</button>`:''}
+      </div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="k-label">Total Shipments</div><div class="k-val">${all.length}</div><div class="k-sub">${all.filter(isOpen).length} still in progress</div></div>
+      <div class="kpi blue"><div class="k-label">In transit</div><div class="k-val">${inTransit}</div><div class="k-sub">shipped / transit / customs</div></div>
+      <div class="kpi gold"><div class="k-label">Arriving ≤ 14 days</div><div class="k-val">${arriving}</div></div>
+      <div class="kpi red"><div class="k-label">Overdue</div><div class="k-val">${overdue}</div><div class="k-sub">past ETA, not received</div></div>
+    </div>
+    <div class="filter-pills">
+      ${['ALL',...INBOUND_STATUS].map(s=>`<button class="filter-pill ${inFilter===s?'active':''}" onclick="inFilter='${s}';renderActive()">${s==='ALL'?'All':esc(s)} <span class="muted">${s==='ALL'?all.length:all.filter(r=>r.status===s).length}</span></button>`).join('')}
+    </div>
+    <div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}<th>⚙</th></tr></thead><tbody>
+      ${rows.length?rows.map(r=>{ const od=isOpen(r)&&r.etaDate&&r.etaDate<today; return `<tr>
+        <td><b>${esc(r.po)}</b></td><td>${esc(r.item)}</td><td>${esc(r.qty||'')}</td><td>${esc(r.supplier||'')}</td>
+        <td><span class="tag">${esc(r.country||'')}</span></td><td>${esc(r.method||'')}</td>
+        <td>${fmtDate(r.departDate)}</td><td style="${od?'color:#b91c1c;font-weight:700':''}">${fmtDate(r.etaDate)}${od?' ⚠':''}</td><td>${fmtDate(r.actualDate)}</td>
+        <td>${inboundPill(r.status)}</td><td class="note-cell">${esc(r.remarks||'')}</td>
+        <td class="actions">${canEditModule('inbound')?`<button class="mini-btn" onclick="openInbound('${r.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delInbound('${r.id}')">✕</button>`:''}</td>
+      </tr>`;}).join(''):`<tr><td colspan="${cols.length+1}"><div class="empty">No inbound shipments logged.</div></td></tr>`}
+    </tbody></table></div>
+  </div>`);
+}
+function openInbound(id){ if(!requireEdit('inbound'))return; const r=id?state.inbound.find(x=>x.id===id):{id:uid(),method:'Sea',status:'Ordered',country:'USA',qty:1};
+  const sel=(n,o,v)=>`<select name="${n}">${['',...o].map(x=>`<option ${String(v||'')===String(x)?'selected':''}>${x}</option>`).join('')}</select>`;
+  modal(id?'Edit shipment — '+esc(r.po||r.id):'New inbound shipment',`<div class="form-grid">
+    <div class="fld"><label>PO number</label><input name="po" value="${esc(r.po||'')}" placeholder="PO-2026-000"></div>
+    <div class="fld"><label>Number of items ordered</label><input type="number" name="qty" value="${r.qty||1}" min="1"></div>
+    <div class="fld full"><label>Item description</label><input name="item" value="${esc(r.item||'')}"></div>
+    <div class="fld"><label>Supplier / Vendor</label><input name="supplier" value="${esc(r.supplier||'')}" list="suppliers"><datalist id="suppliers"><option>OxeFit Inc.</option></datalist></div>
+    <div class="fld"><label>Country of origin</label><input name="country" value="${esc(r.country||'')}" list="origins"><datalist id="origins">${ORIGIN_COUNTRIES.map(c=>`<option>${c}</option>`).join('')}</datalist></div>
+    <div class="fld"><label>Shipping method</label>${sel('method',SHIP_METHODS,r.method)}</div>
+    <div class="fld"><label>Shipment status</label>${sel('status',INBOUND_STATUS,r.status)}</div>
+    <div class="fld"><label>Departure date (origin)</label><input type="date" name="departDate" value="${esc(r.departDate||'')}"></div>
+    <div class="fld"><label>Expected arrival date</label><input type="date" name="etaDate" value="${esc(r.etaDate||'')}"></div>
+    <div class="fld"><label>Actual arrival date</label><input type="date" name="actualDate" value="${esc(r.actualDate||'')}"></div>
+    <div class="fld full"><label>Remarks / notes</label><textarea name="remarks" rows="2">${esc(r.remarks||'')}</textarea></div>
+    <div class="fld full hint">Tip: set status to <b>Received</b> and fill the actual arrival date once the shipment lands — then add the units to Spares &amp; Stock.</div>
+  </div>`,
+    ()=>{ const f=getForm(); f.qty=Number(f.qty)||0; f._ts=Date.now(); if(id)Object.assign(r,f); else state.inbound.push(f); persist(); closeModal(); toast('Shipment saved','ok'); });
+}
+function delInbound(id){ if(!canDelete())return; if(!confirm('Delete this shipment?'))return; deleteFrom('inbound',id); toast('Deleted'); }
 
 /* ============================================================
    VIEW: SHIPPING & COSTS  (COSTING log)
@@ -1480,7 +1555,7 @@ function importCostingExcel(){
    EXPORT + SETUP
 ============================================================ */
 function exportCSV(which){
-  const map={deliveries:state.deliveries,costing:state.costing,tickets:state.tickets,events:state.events};
+  const map={deliveries:state.deliveries,costing:state.costing,tickets:state.tickets,events:state.events,inbound:state.inbound};
   const rows=map[which]||[]; if(!rows.length){ toast('Nothing to export'); return; }
   const keys=Object.keys(rows[0]); const csv=[keys.join(',')].concat(rows.map(r=>keys.map(k=>`"${String(r[k]==null?'':r[k]).replace(/"/g,'""')}"`).join(','))).join('\n');
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='oxefit-'+which+'.csv'; a.click();
