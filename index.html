@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v1.8</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v1.9</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v1.8</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v1.9</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v1.8</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v1.9</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -275,6 +275,8 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="nav-item" data-view="shipping" onclick="go('shipping')"><span class="nav-ico">💰</span><span class="lbl">Shipping &amp; Costs</span></div>
       <div class="nav-item" data-view="logs" onclick="go('logs')"><span class="nav-ico">📷</span><span class="lbl">Logs &amp; Images</span></div>
       <div class="nav-item" data-view="events" onclick="go('events')"><span class="nav-ico">🎪</span><span class="lbl">Event Setup</span></div>
+      <div class="nav-section">Company</div>
+      <div class="nav-item" data-view="documents" onclick="go('documents')"><span class="nav-ico">📁</span><span class="lbl">Important Documents</span></div>
       <div class="nav-section">Support</div>
       <div class="nav-item" data-view="tickets" onclick="go('tickets')"><span class="nav-ico">🎫</span><span class="lbl">Tickets</span><span class="nav-badge" id="ticketBadge" style="display:none">0</span></div>
       <div class="nav-item" data-view="reviews" onclick="go('reviews')"><span class="nav-ico">⭐</span><span class="lbl">Customer Reviews</span></div>
@@ -289,8 +291,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.8
-   Build: v1.8 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.9
+   Build: v1.9 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -364,6 +366,8 @@ const EVENT_UNITS  = ['XS1 FLOW','XS1 FLOW+','XS1 PEAK','XS1 PEAK+','XP1','Multi
 const SHIP_METHODS   = ['Air','Sea','Courier'];
 const INBOUND_STATUS = ['Ordered','Shipped','In Transit','Customs Clearance','Received'];
 const ORIGIN_COUNTRIES = ['USA','China','Germany','UK','UAE','India','Other'];
+const DOC_CATEGORIES = ['Warehouse Agreement','Contract','Ejari','Shipment Document','Trade License','Insurance','Other'];
+const APPROVAL_STATUS = ['Pending','Approved','Rejected'];
 
 /* ─────────── STATE ─────────── */
 let CURRENT_USER = null, CURRENT_ROLE = 'viewer';
@@ -372,8 +376,8 @@ let reviewSheetId = REVIEWS_CONFIG.sheetId || (function(){ try{ return localStor
 let activeView = 'dashboard';
 const LS_KEY = 'oxefit_delivery_v1';
 
-let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], logs:[], events:[], inbound:[], tombstones:{}, meta:{updated:null,by:null,logo:null} };
-const COLLECTIONS = ['deliveries','stock','accessories','costing','tickets','reviews','logs','events','inbound'];
+let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], logs:[], events:[], inbound:[], documents:[], tombstones:{}, meta:{updated:null,by:null,logo:null} };
+const COLLECTIONS = ['deliveries','stock','accessories','costing','tickets','reviews','logs','events','inbound','documents'];
 
 /* ─────────── SEED DATA (sample rows from your Excel template) ─────────── */
 function seedData(){
@@ -430,6 +434,7 @@ function seedData(){
     {id:uid(),po:'PO-2026-008',item:'Accessory trees & benches',qty:40,supplier:'OxeFit Inc.',country:'China',method:'Sea',departDate:'2026-03-15',etaDate:'2026-05-10',actualDate:'2026-05-12',status:'Received',remarks:'2 benches arrived with minor scuffs — logged as spares.',_ts:Date.now()}
   ];
   state.meta = {updated:new Date().toISOString(), by:'seed', logo:null};
+  state.documents = [];
 }
 
 /* ─────────── UTILITIES ─────────── */
@@ -751,7 +756,7 @@ function go(view){
   renderActive();
 }
 function renderActive(){
-  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,inbound:renderInbound,shipping:renderShipping,logs:renderLogs,events:renderEvents,tickets:renderTickets,reviews:renderReviews}[activeView];
+  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,inbound:renderInbound,shipping:renderShipping,logs:renderLogs,events:renderEvents,documents:renderDocuments,tickets:renderTickets,reviews:renderReviews}[activeView];
   if(r) document.getElementById('mainContent').innerHTML='', r();
   updateTicketBadge();
 }
@@ -1104,6 +1109,73 @@ function openInbound(id){ if(!requireEdit('inbound'))return; const r=id?state.in
 function delInbound(id){ if(!canDelete())return; if(!confirm('Delete this shipment?'))return; deleteFrom('inbound',id); toast('Deleted'); }
 
 /* ============================================================
+   VIEW: IMPORTANT DOCUMENTS  (company doc vault — agreements, contracts, Ejari…)
+============================================================ */
+let _vaultFile=null, vaultFilter='ALL';
+function daysTo(d){ if(!d) return null; return Math.round((new Date(d)-new Date())/864e5); }
+function renderDocuments(){
+  const docs=(state.documents||[]).slice();
+  const expSoon=docs.filter(d=>{const n=daysTo(d.expiryDate); return n!=null && n>=0 && n<=60;}).length;
+  const expired=docs.filter(d=>{const n=daysTo(d.expiryDate); return n!=null && n<0;}).length;
+  let rows=docs;
+  if(vaultFilter!=='ALL') rows=rows.filter(d=>d.category===vaultFilter);
+  const groups={}; rows.forEach(d=>{ (groups[d.category||'Other']=groups[d.category||'Other']||[]).push(d); });
+  const cats=Object.keys(groups).sort((a,b)=>DOC_CATEGORIES.indexOf(a)-DOC_CATEGORIES.indexOf(b));
+  const catIcon=c=>({'Warehouse Agreement':'🏬','Contract':'📜','Ejari':'🏠','Shipment Document':'🚢','Trade License':'🪪','Insurance':'🛡️'}[c]||'📁');
+  document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
+  <div class="view active">
+    <div class="page-head">
+      <div><div class="page-title">Important Documents</div><div class="page-sub">Warehouse agreements, contracts, Ejari, shipment &amp; legal documents — central, synced vault</div></div>
+      <div class="toolbar">${canEditModule('documents')?`<button class="btn primary" onclick="openDocument()">⬆ Upload document</button>`:''}</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="k-label">Documents</div><div class="k-val">${docs.length}</div></div>
+      <div class="kpi gold"><div class="k-label">Expiring ≤ 60 days</div><div class="k-val">${expSoon}</div><div class="k-sub">renewals to plan</div></div>
+      <div class="kpi red"><div class="k-label">Expired</div><div class="k-val">${expired}</div></div>
+    </div>
+    <div class="filter-pills">
+      <button class="filter-pill ${vaultFilter==='ALL'?'active':''}" onclick="vaultFilter='ALL';renderActive()">All <span class="muted">${docs.length}</span></button>
+      ${DOC_CATEGORIES.map(c=>{const n=docs.filter(d=>d.category===c).length; return n?`<button class="filter-pill ${vaultFilter===c?'active':''}" onclick="vaultFilter='${c}';renderActive()">${esc(c)} <span class="muted">${n}</span></button>`:''}).join('')}
+    </div>
+    ${docs.length? cats.map(c=>`
+      <div class="panel" style="margin-bottom:14px"><h3>${catIcon(c)} ${esc(c)} <span class="muted" style="font-weight:600;margin-left:auto;font-size:12px">${groups[c].length}</span></h3>
+        <div style="display:flex;flex-direction:column;gap:7px;margin-top:6px">
+          ${groups[c].map(d=>{ const nd=daysTo(d.expiryDate); const exp = nd!=null && nd<0; const soon = nd!=null && nd>=0 && nd<=60;
+            return `<div style="display:flex;align-items:center;gap:11px;border:1px solid ${exp?'#fecaca':soon?'#fcd34d':'var(--border)'};border-radius:10px;padding:10px 12px;background:${exp?'#fef2f2':soon?'#fffbeb':'#f8fafc'}">
+            <span style="font-size:22px">${docIcon(d.mime,d.fileName)}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.title||d.fileName||'Document')}</div>
+              <div class="muted" style="font-size:11px">${esc(d.fileName||'')}${d.size?' · '+(d.size/1024|0)+' KB':''} · ${esc(d.by||'')} · ${fmtDate(d.date)}${d.expiryDate?` · <b style="color:${exp?'#b91c1c':soon?'#b45309':'inherit'}">${exp?'EXPIRED':'expires'} ${fmtDate(d.expiryDate)}</b>`:''}</div>
+              ${d.notes?`<div class="muted" style="font-size:11.5px;margin-top:2px">📝 ${esc(d.notes)}</div>`:''}
+            </div>
+            ${d.data?`<button class="mini-btn" onclick="openDocFile('${d.id}')">⬇ Open</button>`:''}
+            ${canEditModule('documents')?`<button class="mini-btn" onclick="openDocument('${d.id}')">Edit</button>`:''}
+            ${canDelete()?`<button class="mini-btn del" onclick="delDocument('${d.id}')">✕</button>`:''}
+          </div>`; }).join('')}
+        </div>
+      </div>`).join('') : '<div class="panel"><div class="empty">No documents yet.'+(canEditModule('documents')?' Click “Upload document” to add agreements, contracts, Ejari, etc.':' (Admins can upload company documents here.)')+'</div></div>'}
+  </div>`);
+}
+function openDocument(id){ if(!requireEdit('documents'))return; _vaultFile=null; const d=id?state.documents.find(x=>x.id===id):{id:uid(),category:'Warehouse Agreement'};
+  modal(id?'Edit document':'Upload important document',`<div class="form-grid">
+    <div class="fld full"><label>Document title</label><input name="title" value="${esc(d.title||'')}" placeholder="e.g. Warehouse lease — Al Quoz 2026"></div>
+    <div class="fld"><label>Category</label><select name="category">${DOC_CATEGORIES.map(c=>`<option ${d.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="fld"><label>Expiry / renewal date (optional)</label><input type="date" name="expiryDate" value="${esc(d.expiryDate||'')}"></div>
+    <div class="fld full"><label>Notes / remarks</label><textarea name="notes" rows="2">${esc(d.notes||'')}</textarea></div>
+    <div class="fld full"><label>File ${id?'(leave empty to keep current)':''}</label><div style="display:flex;gap:12px;align-items:center"><button class="btn" type="button" onclick="chooseVaultFile()">📎 Choose file</button><span id="vaultFileState" class="muted">${id&&d.fileName?'Current: '+esc(d.fileName):'No file selected'}</span></div>
+      <div class="hint">PDF, Word, Excel or image. Max 4 MB — stored in the shared team database.</div></div>
+  </div>`,
+  ()=>{ const f=getForm(); if(!id && !_vaultFile){ toast('Choose a file first','err'); return; }
+    const rec={ title:f.title||(_vaultFile&&_vaultFile.name)||'Document', category:f.category, expiryDate:f.expiryDate||'', notes:f.notes||'', by:CURRENT_USER, date:(d.date||new Date().toISOString().slice(0,10)), _ts:Date.now() };
+    if(_vaultFile){ rec.fileName=_vaultFile.name; rec.mime=_vaultFile.mime; rec.size=_vaultFile.size; rec.data=_vaultFile.data; }
+    if(id){ Object.assign(d,rec); } else { state.documents.unshift({id:uid(),...rec}); }
+    persist(); closeModal(); toast('Document saved','ok'); });
+}
+function chooseVaultFile(){ pickFile(MAX_DOC_BYTES, fileObj=>{ _vaultFile=fileObj; const s=document.getElementById('vaultFileState'); if(s){ s.textContent='✅ '+fileObj.name+' ('+(fileObj.size/1024|0)+' KB)'; s.style.color='var(--success)'; } }); }
+function openDocFile(id){ const d=state.documents.find(x=>x.id===id); if(!d||!d.data) return; const a=document.createElement('a'); a.href=d.data; a.download=d.fileName||'document'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+function delDocument(id){ if(!canDelete())return; if(!confirm('Delete this document?'))return; deleteFrom('documents',id); toast('Deleted'); }
+
+/* ============================================================
    VIEW: SHIPPING & COSTS  (COSTING log)
 ============================================================ */
 function costParts(x){ const tr=+x.truck||0, lb=+x.labor||0, pt=+x.petrol||0, rc=+x.rentcar||0, ot=+x.other||0; return {tr,lb,pt,rc,ot,sum:tr+lb+pt+rc+ot}; }
@@ -1126,14 +1198,17 @@ function renderShipping(){
       <div class="kpi"><div class="k-label">Avg cost / XS1</div><div class="k-val" style="font-size:24px">${money(avg('XS1'))}</div></div>
       <div class="kpi teal"><div class="k-label">Avg cost / XP1</div><div class="k-val" style="font-size:24px">${money(avg('XP1'))}</div></div>
       <div class="kpi gold"><div class="k-label">Avg offloading</div><div class="k-val" style="font-size:24px">${money(avg('Offloading'))}</div></div>
+      <div class="kpi red"><div class="k-label">Pending approval</div><div class="k-val">${c.filter(x=>(x.approval||'Pending')==='Pending').length}</div><div class="k-sub">awaiting sign-off</div></div>
     </div>
     <div class="panel" style="margin-bottom:16px"><h3>💸 Expense breakdown by category</h3><div class="p-sub">Where the shipping budget goes</div>
       ${barChart(cats.map(([k,l,col])=>({label:l,value:catTotal(k),color:col})))}
     </div>
-    <div class="table-wrap"><table><thead><tr><th>Delivery Note ID</th><th>Receiver</th><th>Type</th><th>Address</th><th>Date</th><th>Sales Person</th><th>Truck</th><th>Labor</th><th>Petrol</th><th>Rent-a-car</th><th>Other</th><th>Total</th><th>⚙</th></tr></thead><tbody>
-      ${c.length?c.map(x=>{const p=costParts(x);return `<tr><td><b>${esc(x.noteId)}</b></td><td>${esc(x.receiver)}</td><td><span class="tag">${esc(x.type)}</span></td><td class="note-cell">${esc(x.address)}</td><td>${fmtDate(x.date)}</td><td>${esc(x.salesPerson)}</td>
+    <div class="table-wrap"><table><thead><tr><th>Delivery Note ID</th><th>Receiver</th><th>Type</th><th>Address</th><th>Date</th><th>Sales Person</th><th>Truck</th><th>Labor</th><th>Petrol</th><th>Rent-a-car</th><th>Other</th><th>Total</th><th>Approval</th><th>Notes</th><th>⚙</th></tr></thead><tbody>
+      ${c.length?c.map(x=>{const p=costParts(x); const ap=x.approval||'Pending'; const apc={'Approved':'green','Rejected':'red','Pending':'amber'}[ap]; return `<tr><td><b>${esc(x.noteId)}</b></td><td>${esc(x.receiver)}</td><td><span class="tag">${esc(x.type)}</span></td><td class="note-cell">${esc(x.address)}</td><td>${fmtDate(x.date)}</td><td>${esc(x.salesPerson)}</td>
       <td>${n0(p.tr)}</td><td>${n0(p.lb)}</td><td>${n0(p.pt)}</td><td>${n0(p.rc)}</td><td>${n0(p.ot)}</td><td><b>${money(costTotal(x))}</b></td>
-      <td class="actions">${canEditModule('shipping')?`<button class="mini-btn" onclick="openCost('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delCost('${x.id}')">✕</button>`:''}</td></tr>`;}).join(''):`<tr><td colspan="13"><div class="empty">No cost entries.</div></td></tr>`}
+      <td><span class="pill ${apc}">${esc(ap)}</span>${x.approvedBy?`<div class="muted" style="font-size:10px">${esc(x.approvedBy)}${x.approvedDate?' · '+fmtDate(x.approvedDate):''}</div>`:''}</td>
+      <td class="note-cell">${esc(x.remarks||'')}</td>
+      <td class="actions">${CURRENT_ROLE==='admin'&&ap==='Pending'?`<button class="mini-btn" onclick="approveCost('${x.id}')">✓ Approve</button> `:''}${canEditModule('shipping')?`<button class="mini-btn" onclick="openCost('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delCost('${x.id}')">✕</button>`:''}</td></tr>`;}).join(''):`<tr><td colspan="15"><div class="empty">No cost entries.</div></td></tr>`}
     </tbody></table></div>
   </div>`);
 }
@@ -1154,9 +1229,17 @@ function openCost(id){ if(!requireEdit('shipping'))return; const x=id?state.cost
     <div class="fld"><label>🚗 Rent-a-car expenses (AED)</label><input type="number" name="rentcar" value="${rc}" oninput="recalcCost()"></div>
     <div class="fld"><label>Other / misc (AED)</label><input type="number" name="other" value="${ot}" oninput="recalcCost()"></div>
     <div class="fld" style="display:flex;align-items:flex-end"><div style="width:100%;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:9px 12px"><div class="k-label" style="color:#047857">Total costing</div><div id="costTotalVal" style="font-size:22px;font-weight:800;color:#065f46">${money(tr+lb+pt+rc+ot)}</div></div></div>
+    <div class="fld"><label>Approval status</label><select name="approval">${APPROVAL_STATUS.map(a=>`<option ${(x.approval||'Pending')===a?'selected':''}>${a}</option>`).join('')}</select>${x.approvedBy?`<div class="hint">${esc(x.approval)} by ${esc(x.approvedBy)}${x.approvedDate?' on '+fmtDate(x.approvedDate):''}</div>`:'<div class="hint">Set by admin sign-off.</div>'}</div>
+    <div class="fld full"><label>Comments / notes (for reference &amp; approval)</label><textarea name="remarks" rows="3">${esc(x.remarks||'')}</textarea></div>
   </div>`,
-    ()=>{const f=getForm(); ['truck','labor','petrol','rentcar','other'].forEach(k=>f[k]=Number(f[k])||0); f.cost=f.truck+f.labor+f.petrol+f.rentcar+f.other; f._ts=Date.now(); if(id)Object.assign(x,f);else state.costing.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+    ()=>{const f=getForm(); ['truck','labor','petrol','rentcar','other'].forEach(k=>f[k]=Number(f[k])||0); f.cost=f.truck+f.labor+f.petrol+f.rentcar+f.other;
+      const prev=x.approval||'Pending'; f.approval=f.approval||'Pending';
+      if(f.approval!=='Pending' && (f.approval!==prev || !x.approvedBy)){ f.approvedBy=CURRENT_USER; f.approvedDate=new Date().toISOString().slice(0,10); }
+      else if(f.approval==='Pending'){ f.approvedBy=''; f.approvedDate=''; }
+      else { f.approvedBy=x.approvedBy; f.approvedDate=x.approvedDate; }
+      f._ts=Date.now(); if(id)Object.assign(x,f);else state.costing.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
 }
+function approveCost(id){ if(CURRENT_ROLE!=='admin'){ toast('Admin sign-off only','err'); return; } const x=state.costing.find(r=>r.id===id); if(!x) return; x.approval='Approved'; x.approvedBy=CURRENT_USER; x.approvedDate=new Date().toISOString().slice(0,10); x._ts=Date.now(); persist(); toast('Cost approved','ok'); }
 function recalcCost(){ const f=document.getElementById('modalCard'); if(!f) return; const g=n=>Number((f.querySelector(`[name="${n}"]`)||{}).value)||0; const t=g('truck')+g('labor')+g('petrol')+g('rentcar')+g('other'); const el=f.querySelector('#costTotalVal'); if(el) el.textContent=money(t); }
 function costFill(selEl){ const d=state.deliveries.find(x=>x.id===selEl.value); if(!d) return; const form=selEl.closest('#modalCard');
   form.querySelector('[name="receiver"]').value=d.receiver||'';
