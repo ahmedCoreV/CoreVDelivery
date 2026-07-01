@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v2.2</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v2.3</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v2.2</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v2.3</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v2.2</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v2.3</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -292,8 +292,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.2
-   Build: v2.2 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.3
+   Build: v2.3 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -494,6 +494,7 @@ function applyBranding(){
 function openSettings(){
   if(CURRENT_ROLE!=='admin'){ toast('Admin only','err'); return; }
   const logo=state.meta&&state.meta.logo;
+  const sig=state.meta&&state.meta.signature, stamp=state.meta&&state.meta.stamp;
   modal('Branding & Settings',`
     <div class="fld"><label>Company logo</label>
       <div style="display:flex;align-items:center;gap:16px;margin-top:6px">
@@ -505,10 +506,29 @@ function openSettings(){
       </div>
       <div class="hint">PNG or JPG — you'll crop it to a square before it's applied. Shown in the top bar &amp; sign-in, synced to the whole team.</div>
     </div>
+
+    <div class="fld" style="margin-top:18px"><label>Document signature &amp; stamp</label>
+      <div class="hint" style="margin-bottom:8px">Used on generated Installation, Warranty, PPM &amp; EST documents (the "For the Company" signature block). PNG with a transparent background works best. Synced to the whole team.</div>
+      <div style="display:flex;gap:22px;flex-wrap:wrap">
+        <div style="text-align:center">
+          <div style="width:150px;height:80px;border:1px dashed var(--border);border-radius:10px;background:#f8fafc ${sig?`url("${sig}") center/contain no-repeat`:''};display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12px">${sig?'':'Signature'}</div>
+          <div style="display:flex;gap:6px;justify-content:center;margin-top:8px"><button class="btn" onclick="uploadSignature()">⬆ Signature</button>${sig?`<button class="btn danger" onclick="removeSignature()">✕</button>`:''}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="width:100px;height:100px;border:1px dashed var(--border);border-radius:10px;background:#f8fafc ${stamp?`url("${stamp}") center/contain no-repeat`:''};display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12px">${stamp?'':'Stamp'}</div>
+          <div style="display:flex;gap:6px;justify-content:center;margin-top:8px"><button class="btn" onclick="uploadStamp()">⬆ Stamp</button>${stamp?`<button class="btn danger" onclick="removeStamp()">✕</button>`:''}</div>
+        </div>
+      </div>
+    </div>
+
     <div class="fld" style="margin-top:18px"><label>Shared database</label>
       <div class="hint">One file for the whole team: <b>${esc(ONEDRIVE_CONFIG.filePath)}</b> in <b>${esc(ONEDRIVE_CONFIG.sharedDriveUser)}</b>'s OneDrive. Last updated ${state.meta&&state.meta.updated?fmtDate(state.meta.updated):'—'} by ${esc((state.meta&&state.meta.by)||'—')}.</div>
     </div>`, null);
 }
+function uploadSignature(){ pickImage(500,'image/png',0.95, du=>{ state.meta=state.meta||{}; state.meta.signature=du; persist(); openSettings(); toast('Signature saved','ok'); }); }
+function removeSignature(){ state.meta=state.meta||{}; state.meta.signature=null; persist(); openSettings(); toast('Signature removed'); }
+function uploadStamp(){ pickImage(500,'image/png',0.95, du=>{ state.meta=state.meta||{}; state.meta.stamp=du; persist(); openSettings(); toast('Stamp saved','ok'); }); }
+function removeStamp(){ state.meta=state.meta||{}; state.meta.stamp=null; persist(); openSettings(); toast('Stamp removed'); }
 function uploadLogo(){ startLogoCrop(); }
 function removeLogo(){ state.meta=state.meta||{}; state.meta.logo=null; persist(); applyBranding(); openSettings(); toast('Logo removed'); }
 
@@ -671,7 +691,7 @@ function mergeState(remote){
   // 3) meta: newest wins; keep a logo if we don't have one
   const lu=Date.parse((state.meta&&state.meta.updated)||0)||0, ru=Date.parse((remote.meta&&remote.meta.updated)||0)||0;
   if(ru>lu && remote.meta){ state.meta=remote.meta; }
-  else if(remote.meta&&remote.meta.logo&&!(state.meta&&state.meta.logo)){ state.meta=state.meta||{}; state.meta.logo=remote.meta.logo; }
+  else if(remote.meta){ state.meta=state.meta||{}; ['logo','signature','stamp'].forEach(k=>{ if(remote.meta[k]&&!state.meta[k]) state.meta[k]=remote.meta[k]; }); }
 }
 async function fetchRemote(tok){
   const ref=await resolveFileRef(tok);
@@ -1269,7 +1289,17 @@ function renderCertificates(){
 
 /* ---- build the four documents ---- */
 const DOC_CSS=`@page{size:A4;margin:16mm 15mm}*{box-sizing:border-box}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a202c;font-size:12.5px;line-height:1.5;margin:0;padding:22px}.doc-logo{margin-bottom:14px}.doc-logo img{height:50px}.wordmark{font-weight:800;font-size:26px;letter-spacing:1px;color:#0f2740}.wordmark .x{color:#e11d48}.doc-logo small{display:block;font-size:9px;letter-spacing:2px;color:#64748b}h1.doc-title{font-size:18px;color:#1e40af;margin:6px 0 16px}h2.doc-h{font-size:14px;color:#2b6cb0;margin:16px 0 8px}table{border-collapse:collapse;width:100%;margin-bottom:6px}table.kv td{border:1px solid #cbd5e1;padding:6px 9px;vertical-align:top}table.kv td.k{width:42%;font-style:italic;color:#334155;background:#f8fafc}table.grid th{border:1px solid #94a3b8;background:#eef2f7;padding:6px 9px;text-align:left;font-size:12px}table.grid td{border:1px solid #cbd5e1;padding:6px 9px}.box{border:1px solid #cbd5e1;border-radius:4px;padding:10px;min-height:44px}ul.excl{margin:6px 0 6px 18px}ul.excl li{margin:3px 0}p{margin:6px 0}.photos{display:flex;flex-wrap:wrap;gap:10px}.photos img{max-width:47%;border:1px solid #cbd5e1;border-radius:6px}.sign{display:flex;gap:30px;margin-top:24px}.sign>div{flex:1}.sign .line{margin-top:34px;border-top:1px solid #475569;padding-top:4px;font-size:11px;color:#475569}button{background:#1e40af;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer}@media print{.no-print{display:none}}`;
-const SIGN2=`<div class="sign"><div><b>For the Company — ${COMPANY.name}</b><div class="line">Signed &amp; stamped by</div></div><div><b>For the Customer</b><div class="line">Signed &amp; accepted by</div></div></div>`;
+function signBlock(){
+  const sig=state.meta&&state.meta.signature, stamp=state.meta&&state.meta.stamp;
+  const company=`<div><b>For the Company — ${COMPANY.name}</b>
+    <div style="position:relative;height:96px;margin-top:4px">
+      ${sig?`<img src="${sig}" style="max-height:64px;max-width:210px;position:absolute;left:0;top:8px">`:''}
+      ${stamp?`<img src="${stamp}" style="max-height:96px;max-width:140px;position:absolute;left:150px;top:0;opacity:.92">`:''}
+    </div>
+    <div class="line">Signed &amp; stamped by</div></div>`;
+  const cust=`<div><b>For the Customer</b><div style="height:96px"></div><div class="line">Signed &amp; accepted by</div></div>`;
+  return `<div class="sign">${company}${cust}</div>`;
+}
 function kv(rows){ return `<table class="kv">${rows.map(r=>`<tr><td class="k">${r[0]}</td><td>${r[1]==null?'':r[1]}</td></tr>`).join('')}</table>`; }
 function checklist(rows){ return `<table class="kv">${rows.map(r=>`<tr><td class="k" style="font-style:normal">${r[0]}</td><td>${r[1]||'YES'}</td></tr>`).join('')}</table>`; }
 function sec(t,inner){ return `<h2 class="doc-h">${t}</h2>${inner}`; }
@@ -1283,7 +1313,7 @@ function buildInstallation(g,photos){ return ''
   + sec('7. Warranty & Support Confirmation', kv([['Warranty type',esc(g.warrantyType)],['Warranty start date',fmtDate(g.warrantyStart)],['Warranty duration',esc(g.warrantyDuration)]]))
   + sec('8. Issues, Observations & Remarks', `<div class="box">${esc(g.issues||'N/A')}</div>`)
   + (photos&&photos.length? sec('9. Installation Photos', `<div class="photos">${photos.map(p=>`<img src="${p}">`).join('')}</div>`):'')
-  + sec('10. Final Acceptance & Handover', `<p>The system has been installed and handed over in good working condition.</p>`+SIGN2);
+  + sec('10. Final Acceptance & Handover', `<p>The system has been installed and handed over in good working condition.</p>`+signBlock());
 }
 function buildWarranty(g){ const end=addYearsEnd(g.warrantyStart,g.years);
   return ''
@@ -1302,7 +1332,7 @@ function buildWarranty(g){ const end=addYearsEnd(g.warrantyStart,g.years);
     <tr><td>Labor</td><td>For the applicable Warranty Period</td><td>Labor cost for repair/replacement of a covered item</td></tr></table>`)
   + sec('Warranty Claims', `<p>Contact CoreV at ${COMPANY.email} with the serial number, proof of purchase, and issue description.</p>`)
   + sec('Governing Law', `<p>This Warranty Certificate is governed by the laws of the United Arab Emirates.</p>`)
-  + sec('Authorization', SIGN2);
+  + sec('Authorization', signBlock());
 }
 function buildPPM(g){ return ''
   + sec('1. Purpose', `<p>This Planned Preventive Maintenance (PPM) Schedule outlines the maintenance services provided for the OxeFit ${esc(g.model)} to ensure optimal performance, safety, reliability, and system longevity.</p>`)
@@ -1314,7 +1344,7 @@ function buildPPM(g){ return ''
   + sec('6. Exclusions', `<p>Spare parts, major repairs, misuse-related damage, and corrective maintenance outside scheduled visits are excluded unless agreed in writing.</p>`)
   + sec('7. Customer Responsibilities', `<p>Ensure site accessibility, safe working conditions, and stable power and internet connectivity.</p>`)
   + sec('8. Validity', `<p>This PPM Schedule is valid for ${esc(g.validity)} calendar year(s) from the effective date.</p>`)
-  + sec('9. Acceptance', `<p>By acceptance, the Customer agrees to the scope and terms outlined in this document.</p>`+SIGN2);
+  + sec('9. Acceptance', `<p>By acceptance, the Customer agrees to the scope and terms outlined in this document.</p>`+signBlock());
 }
 function buildEST(g){ return ''
   + kv([['Certificate No:',esc(g.certNo)],['Date of Test:',fmtDate(g.testDate)]])
@@ -1325,7 +1355,7 @@ function buildEST(g){ return ''
   + sec('5. Test Outcome', `<p><b>${esc(g.outcome)}</b> — Equipment deemed SAFE FOR OPERATION if passed.</p>`)
   + sec('6. Remarks / Observations', `<div class="box">${esc(g.remarks||'N/A')}</div>`)
   + sec('7. Compliance Statement', `<p>This certifies that the OxeFit ${esc(g.model)} has passed Electrical Safety Tests and complies with applicable IEC standards and manufacturer guidelines.</p>`)
-  + sec('8. Authorization', SIGN2);
+  + sec('8. Authorization', signBlock());
 }
 function buildCertHtml(){
   const g={ customer:certVal('customer'), address:certVal('address'), email:certVal('email'), phone:certVal('phone'), model:certVal('model'), serial:certVal('serial'), qty:certVal('qty')||'1', date:certVal('date') };
