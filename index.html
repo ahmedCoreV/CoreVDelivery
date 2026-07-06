@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v2.4</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v2.5</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +228,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v2.4</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v2.5</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +251,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v2.4</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v2.5</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -292,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.4
-   Build: v2.4 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.5
+   Build: v2.5 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -588,7 +589,11 @@ function canEditRow(row){ if(CURRENT_ROLE==='admin') return true; if(!canEditMod
 function requireEdit(mod){ if(!canEditModule(mod)){ toast('You have view-only access to this section','err'); return false;} return true; }
 
 /* ─────────── PERSISTENCE ─────────── */
-function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
+let _lsWarned=false;
+function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){ if(!_lsWarned){ _lsWarned=true; toast('Local cache full — data still saved to OneDrive','err'); } } }
+/* safety net: never let an unexpected error white-screen the app */
+window.addEventListener('error', function(){ try{ toast('Something went wrong — the action was cancelled','err'); }catch(_){}});
+window.addEventListener('unhandledrejection', function(){ try{ toast('An operation failed — please try again','err'); }catch(_){}});
 function loadLocal(){ try{ const r=localStorage.getItem(LS_KEY); if(r){ state=JSON.parse(r); COLLECTIONS.forEach(k=>{ if(!Array.isArray(state[k])) state[k]=[]; }); if(!state.meta) state.meta={}; if(!state.tombstones||typeof state.tombstones!=='object') state.tombstones={}; return true; } }catch(e){} return false; }
 function touch(){ state.meta={...(state.meta||{}), updated:new Date().toISOString(), by:CURRENT_USER}; }
 /* Tombstone a deleted record so the merge-on-sync can't resurrect it
@@ -1183,10 +1188,10 @@ function renderDocuments(){
             <span style="font-size:22px">${docIcon(d.mime,d.fileName)}</span>
             <div style="flex:1;min-width:0">
               <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.title||d.fileName||'Document')}</div>
-              <div class="muted" style="font-size:11px">${esc(d.fileName||'')}${d.size?' · '+(d.size/1024|0)+' KB':''} · ${esc(d.by||'')} · ${fmtDate(d.date)}${d.expiryDate?` · <b style="color:${exp?'#b91c1c':soon?'#b45309':'inherit'}">${exp?'EXPIRED':'expires'} ${fmtDate(d.expiryDate)}</b>`:''}</div>
+              <div class="muted" style="font-size:11px">${esc(d.fileName||'')}${d.size?' · '+fileSize(d.size):''} · ${esc(d.by||'')} · ${fmtDate(d.date)}${d.expiryDate?` · <b style="color:${exp?'#b91c1c':soon?'#b45309':'inherit'}">${exp?'EXPIRED':'expires'} ${fmtDate(d.expiryDate)}</b>`:''}</div>
               ${d.notes?`<div class="muted" style="font-size:11.5px;margin-top:2px">📝 ${esc(d.notes)}</div>`:''}
             </div>
-            ${d.data?`<button class="mini-btn" onclick="openDocFile('${d.id}')">⬇ Open</button>`:''}
+            ${(d.data||d.storage==='onedrive')?`<button class="mini-btn" onclick="openDocFile('${d.id}')">⬇ Open</button>`:''}
             ${canEditModule('documents')?`<button class="mini-btn" onclick="openDocument('${d.id}')">Edit</button>`:''}
             ${canDelete()?`<button class="mini-btn del" onclick="delDocument('${d.id}')">✕</button>`:''}
           </div>`; }).join('')}
@@ -1203,14 +1208,20 @@ function openDocument(id){ if(!requireEdit('documents'))return; _vaultFile=null;
     <div class="fld full"><label>File ${id?'(leave empty to keep current)':''}</label><div style="display:flex;gap:12px;align-items:center"><button class="btn" type="button" onclick="chooseVaultFile()">📎 Choose file</button><span id="vaultFileState" class="muted">${id&&d.fileName?'Current: '+esc(d.fileName):'No file selected'}</span></div>
       <div class="hint">PDF, Word, Excel or image — stored in the shared team database.</div></div>
   </div>`,
-  ()=>{ const f=getForm(); if(!id && !_vaultFile){ toast('Choose a file first','err'); return; }
+  async ()=>{ const f=getForm(); if(!id && !_vaultFile){ toast('Choose a file first','err'); return; }
     const rec={ title:f.title||(_vaultFile&&_vaultFile.name)||'Document', category:f.category, expiryDate:f.expiryDate||'', notes:f.notes||'', by:CURRENT_USER, date:(d.date||new Date().toISOString().slice(0,10)), _ts:Date.now() };
-    if(_vaultFile){ rec.fileName=_vaultFile.name; rec.mime=_vaultFile.mime; rec.size=_vaultFile.size; rec.data=_vaultFile.data; }
-    if(id){ Object.assign(d,rec); } else { state.documents.unshift({id:uid(),...rec}); }
-    persist(); closeModal(); toast('Document saved','ok'); });
+    try{
+      if(_vaultFile){
+        if(_vaultFile.storage==='onedrive'){ toast('Uploading to OneDrive…'); const ref=await graphUploadAttachment(_vaultFile); Object.assign(rec,{storage:'onedrive',driveId:ref.driveId,itemId:ref.itemId,fileName:ref.fileName,mime:ref.mime,size:ref.size}); }
+        else { Object.assign(rec,{storage:'inline',fileName:_vaultFile.name,mime:_vaultFile.mime,size:_vaultFile.size,data:_vaultFile.data}); }
+      }
+      if(id){ Object.assign(d,rec); } else { state.documents.unshift({id:uid(),...rec}); }
+      persist(); closeModal(); toast('Document saved','ok');
+    }catch(err){ console.warn(err); toast('Upload failed — not saved','err'); }
+  });
 }
-function chooseVaultFile(){ pickFile(MAX_DOC_BYTES, fileObj=>{ _vaultFile=fileObj; const s=document.getElementById('vaultFileState'); if(s){ s.textContent='✅ '+fileObj.name+' ('+(fileObj.size/1024|0)+' KB)'; s.style.color='var(--success)'; } }); }
-function openDocFile(id){ const d=state.documents.find(x=>x.id===id); if(!d||!d.data) return; const a=document.createElement('a'); a.href=d.data; a.download=d.fileName||'document'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+function chooseVaultFile(){ pickFile(fileObj=>{ _vaultFile=fileObj; const s=document.getElementById('vaultFileState'); if(s){ s.textContent='✅ '+fileObj.name+' ('+fileSize(fileObj.size)+')'+(fileObj.storage==='onedrive'?' — will upload to OneDrive on save':''); s.style.color='var(--success)'; } }); }
+async function openDocFile(id){ const d=state.documents.find(x=>x.id===id); if(!d) return; try{ await downloadStored(d); }catch(e){ console.warn(e); toast('Could not open the document','err'); } }
 function delDocument(id){ if(!canDelete())return; if(!confirm('Delete this document?'))return; deleteFrom('documents',id); toast('Deleted'); }
 
 /* ============================================================
@@ -1489,7 +1500,7 @@ function delCost(id){ if(!canDelete())return; deleteFrom('costing',id); toast('D
 ============================================================ */
 let _logImg=null, _logDoc=null;
 const DOC_TYPES=['Delivery Note','Signed POD','Invoice','Warranty','Other document'];
-const MAX_DOC_BYTES=4*1024*1024; // 4 MB cap to keep the synced file healthy
+const INLINE_MAX=3*1024*1024; // files ≤3MB embedded inline; larger go to OneDrive as real files
 function isPhoto(l){ return l.kind!=='doc'; }
 function logImgSrc(l){ return l.data||l.img||''; }
 function docIcon(mime,name){ const n=(name||'').toLowerCase(); if((mime||'').includes('pdf')||n.endsWith('.pdf')) return '📄'; if(/(xls|sheet|csv)/.test((mime||'')+n)) return '📊'; if(/(word|doc)/.test((mime||'')+n)) return '📝'; if((mime||'').startsWith('image/')) return '🖼️'; return '📎'; }
@@ -1512,7 +1523,7 @@ function renderLogs(){
           ${dc.map(l=>`<div style="display:flex;align-items:center;gap:11px;border:1px solid var(--border);border-radius:10px;padding:9px 12px;background:#f8fafc">
             <span style="font-size:22px">${docIcon(l.mime,l.fileName)}</span>
             <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(l.fileName||'document')} <span class="tag">${esc(l.category||'Document')}</span></div>
-            <div class="muted" style="font-size:11px">${esc(l.caption||'')}${l.caption?' · ':''}${esc(l.by||'')} · ${fmtDate(l.date)}${l.size?' · '+(l.size/1024|0)+' KB':''}</div></div>
+            <div class="muted" style="font-size:11px">${esc(l.caption||'')}${l.caption?' · ':''}${esc(l.by||'')} · ${fmtDate(l.date)}${l.size?' · '+fileSize(l.size):''}</div></div>
             <button class="mini-btn" onclick="openAttachment('${l.id}')">⬇ Open</button>
             ${canDelete()?`<button class="mini-btn del" onclick="delLog('${l.id}')">✕</button>`:''}
           </div>`).join('')}
@@ -1549,16 +1560,57 @@ function openDoc(){ if(!requireEdit('logs'))return; _logDoc=null;
     <div class="fld full"><label>File</label><div style="display:flex;gap:12px;align-items:center"><button class="btn" type="button" onclick="chooseLogDoc()">📎 Choose file</button><span id="logDocState" class="muted">No file selected</span></div>
       <div class="hint">PDF, Word, Excel or image — stored in the shared team database. Very large files may slow syncing.</div></div>
   </div>`,
-  ()=>{ const f=getForm(); if(!f.orderId){ toast('Select an order','err'); return; } if(!_logDoc){ toast('Choose a file first','err'); return; }
+  async ()=>{ const f=getForm(); if(!f.orderId){ toast('Select an order','err'); return; } if(!_logDoc){ toast('Choose a file first','err'); return; }
     const d=state.deliveries.find(x=>x.id===f.orderId);
-    state.logs.unshift({id:uid(),kind:'doc',orderId:f.orderId,receiver:d?d.receiver:'',category:f.category||'Document',caption:f.caption||'',fileName:_logDoc.name,mime:_logDoc.mime,size:_logDoc.size,data:_logDoc.data,by:CURRENT_USER,date:new Date().toISOString().slice(0,10),_ts:Date.now()});
-    persist(); closeModal(); toast('Document attached','ok'); });
+    const rec={id:uid(),kind:'doc',orderId:f.orderId,receiver:d?d.receiver:'',category:f.category||'Document',caption:f.caption||'',fileName:_logDoc.name,mime:_logDoc.mime,size:_logDoc.size,by:CURRENT_USER,date:new Date().toISOString().slice(0,10),_ts:Date.now()};
+    try{
+      if(_logDoc.storage==='onedrive'){ toast('Uploading to OneDrive…'); const ref=await graphUploadAttachment(_logDoc); Object.assign(rec,{storage:'onedrive',driveId:ref.driveId,itemId:ref.itemId}); }
+      else { rec.storage='inline'; rec.data=_logDoc.data; }
+      state.logs.unshift(rec); persist(); closeModal(); toast('Document attached','ok');
+    }catch(err){ console.warn(err); toast('Upload failed — not saved','err'); }
+  });
 }
-function chooseLogDoc(){ pickFile(MAX_DOC_BYTES, fileObj=>{ _logDoc=fileObj; const s=document.getElementById('logDocState'); if(s){ s.textContent='✅ '+fileObj.name+' ('+(fileObj.size/1024|0)+' KB)'; s.style.color='var(--success)'; } }); }
-function pickFile(maxBytes, cb){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,application/pdf,image/*';
-  inp.onchange=e=>{ const f=e.target.files[0]; if(!f) return; if(f.size>15*1024*1024){ toast('Large file ('+(f.size/1048576|0)+' MB) — sync may be slower','err'); }
-    const rd=new FileReader(); rd.onload=ev=>cb({name:f.name,mime:f.type||'application/octet-stream',size:f.size,data:ev.target.result}); rd.readAsDataURL(f); }; inp.click(); }
-function openAttachment(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; const a=document.createElement('a'); a.href=l.data; a.download=l.fileName||'attachment'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+function chooseLogDoc(){ pickFile(fileObj=>{ _logDoc=fileObj; const s=document.getElementById('logDocState'); if(s){ s.textContent='✅ '+fileObj.name+' ('+fileSize(fileObj.size)+')'+(fileObj.storage==='onedrive'?' — will upload to OneDrive on save':''); s.style.color='var(--success)'; } }); }
+function fileSize(b){ return b>=1048576?((b/1048576).toFixed(1)+' MB'):((b/1024|0)+' KB'); }
+/* Files ≤ INLINE_MAX are embedded in the DB (fast, offline-safe). Larger files are
+   uploaded to OneDrive as REAL files and only referenced — this keeps the synced
+   database small and avoids the localStorage/stringify crash on big uploads. */
+function pickFile(cb){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,application/pdf,image/*';
+  inp.onchange=e=>{ const f=e.target.files[0]; if(!f) return; const base={name:f.name,mime:f.type||'application/octet-stream',size:f.size,file:f};
+    if(f.size<=INLINE_MAX){ const rd=new FileReader(); rd.onload=ev=>cb({...base,storage:'inline',data:ev.target.result}); rd.onerror=()=>toast('Could not read file','err'); rd.readAsDataURL(f); }
+    else if(!msalAccount){ toast('Large files need Microsoft sign-in (OneDrive)','err'); }
+    else { cb({...base,storage:'onedrive'}); }
+  }; inp.click(); }
+/* Upload a large file to the shared OneDrive via a resumable upload session (chunked). */
+async function graphUploadAttachment(fileObj){
+  const tok=await getToken();
+  const upn=encodeURIComponent(ONEDRIVE_CONFIG.sharedDriveUser);
+  const safe=(fileObj.name||'file').replace(/[^\w.\-]+/g,'_');
+  const path='/OXEFIT/attachments/'+Date.now()+'_'+safe;
+  const sres=await fetch('https://graph.microsoft.com/v1.0/users/'+upn+'/drive/root:'+path+':/createUploadSession',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':'rename'}})});
+  if(!sres.ok) throw new Error('session '+sres.status);
+  const {uploadUrl}=await sres.json();
+  const blob=fileObj.file, total=blob.size, CH=5*1024*1024; let start=0, item=null;
+  while(start<total){ const end=Math.min(start+CH,total);
+    const put=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Range':'bytes '+start+'-'+(end-1)+'/'+total},body:blob.slice(start,end)});
+    if(put.status===200||put.status===201){ item=await put.json(); }
+    else if(put.status!==202){ throw new Error('upload '+put.status); }
+    start=end;
+  }
+  if(!item||!item.id) throw new Error('no item returned');
+  return {storage:'onedrive', driveId:(item.parentReference&&item.parentReference.driveId)||'', itemId:item.id, fileName:fileObj.name, mime:fileObj.mime, size:fileObj.size};
+}
+/* download either an inline data-URL or a OneDrive-referenced file */
+async function downloadStored(l){
+  if(l.storage==='onedrive'){
+    const tok=await getToken();
+    const res=await fetch('https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(l.driveId)+'/items/'+encodeURIComponent(l.itemId)+'/content',{headers:{Authorization:'Bearer '+tok}});
+    if(!res.ok) throw new Error('download '+res.status);
+    const blob=await res.blob(); const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=l.fileName||'file'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),15000);
+  } else if(l.data){ const a=document.createElement('a'); a.href=l.data; a.download=l.fileName||'file'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+}
+async function openAttachment(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; try{ await downloadStored(l); }catch(e){ console.warn(e); toast('Could not open the file','err'); } }
 function viewLogImg(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; modal(esc(l.orderId)+' — '+esc(l.caption||'photo'),`<img src="${logImgSrc(l)}" style="width:100%;border-radius:10px"><div class="muted" style="margin-top:8px;font-size:12px">Uploaded by ${esc(l.by||'')} on ${fmtDate(l.date)}</div>`,null,true); }
 function delLog(id){ if(!canDelete())return; const l=state.logs.find(x=>x.id===id); if(!confirm('Delete this '+(l&&l.kind==='doc'?'document':'photo')+'?'))return; deleteFrom('logs',id); toast('Deleted'); }
 
