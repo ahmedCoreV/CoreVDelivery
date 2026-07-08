@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v2.9</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v3.0</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -228,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v2.9</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v3.0</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -251,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v2.9</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v3.0</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -294,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.9
-   Build: v2.9 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.0
+   Build: v3.0 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -546,7 +545,47 @@ function openSettings(){
 
     <div class="fld" style="margin-top:18px"><label>Shared database</label>
       <div class="hint">One file for the whole team: <b>${esc(ONEDRIVE_CONFIG.filePath)}</b> in <b>${esc(ONEDRIVE_CONFIG.sharedDriveUser)}</b>'s OneDrive. Last updated ${state.meta&&state.meta.updated?fmtDate(state.meta.updated):'—'} by ${esc((state.meta&&state.meta.by)||'—')}.</div>
+    </div>
+    <div class="fld" style="margin-top:18px"><label>Storage &amp; performance</label>
+      <div class="hint" style="margin-bottom:8px">Embedded files bloat the database and can crash sync on low-memory devices. Keep this small by moving embedded files to OneDrive.</div>
+      <div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="font-size:13px">Embedded (inline) data in the database: <b style="color:${inlineBytes()>4*1048576?'#b91c1c':'#0f766e'}">${fmtBytes(inlineBytes())}</b></div>
+        <div class="hint" style="margin:6px 0 10px">${inlineBytes()>4*1048576?'⚠ Large — offload now to prevent “Out of Memory” crashes.':'Healthy.'}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary" onclick="offloadAttachments()">⬆ Offload embedded files to OneDrive</button>
+          <button class="btn danger" onclick="purgeAttachments()">Emergency: strip embedded files</button>
+        </div>
+        <div class="hint" style="margin-top:8px">“Offload” keeps every file (moves it to OneDrive, keeps photo thumbnails). “Strip” only frees space by removing embedded copies — use as a last resort if sync keeps crashing.</div>
+      </div>
     </div>`, null);
+}
+async function offloadAttachments(){
+  if(CURRENT_ROLE!=='admin'){ toast('Admin only','err'); return; }
+  const items=[];
+  (state.logs||[]).forEach(l=>{ if(l.storage!=='onedrive' && l.data) items.push({rec:l,photo:l.kind!=='doc'}); });
+  (state.documents||[]).forEach(d=>{ if(d.storage!=='onedrive' && d.data) items.push({rec:d,photo:false}); });
+  if(!items.length){ toast('Nothing to offload — storage is already lean','ok'); return; }
+  if(!confirm('Move '+items.length+' embedded file(s) to OneDrive to shrink the database?\nThis keeps every file and can take a moment.')) return;
+  closeModal(); toast('Offloading '+items.length+' file(s)… please wait');
+  let done=0;
+  for(const it of items){
+    try{
+      const rec=it.rec, blob=dataURLtoBlob(rec.data); if(!blob) continue;
+      const name=rec.fileName||((rec.title||'file')+guessExt(rec.mime||'')); 
+      const ref=await graphUploadAttachment({name:name||'file',mime:rec.mime||'application/octet-stream',size:blob.size,file:blob});
+      if(it.photo){ try{ rec.thumb=rec.thumb||await makeThumb(rec.data); }catch(_){} }
+      rec.storage='onedrive'; rec.driveId=ref.driveId; rec.itemId=ref.itemId; rec.size=blob.size; delete rec.data; rec._ts=Date.now(); done++;
+    }catch(e){ console.warn('offload item failed',e); }
+  }
+  touch(); saveLocal(); renderActive(); await saveToOneDriveDirect(); toast('Offloaded '+done+' of '+items.length+' — database shrunk to '+fmtBytes(inlineBytes()),'ok');
+}
+function purgeAttachments(){
+  if(CURRENT_ROLE!=='admin'){ toast('Admin only','err'); return; }
+  if(!confirm('Emergency cleanup: remove EMBEDDED file copies from the database?\nFiles already on OneDrive are kept. Embedded-only files will lose their content (metadata stays). This cannot be undone.')) return;
+  let n=0;
+  (state.logs||[]).forEach(l=>{ if(l.storage!=='onedrive' && l.data){ delete l.data; l._stripped=true; l._ts=Date.now(); n++; } });
+  (state.documents||[]).forEach(d=>{ if(d.storage!=='onedrive' && d.data){ delete d.data; d._stripped=true; d._ts=Date.now(); n++; } });
+  touch(); saveLocal(); renderActive(); closeModal(); saveToOneDriveDirect(); toast('Stripped '+n+' embedded file(s). DB now '+fmtBytes(inlineBytes()),'ok');
 }
 function uploadSignature(){ pickImage(500,'image/png',0.95, du=>{ state.meta=state.meta||{}; state.meta.signature=du; persist(); openSettings(); toast('Signature saved','ok'); }); }
 function removeSignature(){ state.meta=state.meta||{}; state.meta.signature=null; persist(); openSettings(); toast('Signature removed'); }
@@ -611,7 +650,7 @@ function requireEdit(mod){ if(!canEditModule(mod)){ toast('You have view-only ac
 
 /* ─────────── PERSISTENCE ─────────── */
 let _lsWarned=false;
-function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){ if(!_lsWarned){ _lsWarned=true; toast('Local cache full — data still saved to OneDrive','err'); } } }
+function saveLocal(){ try{ if(inlineBytes()>4*1048576){ return; } localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){ if(!_lsWarned){ _lsWarned=true; toast('Local cache full — data still saved to OneDrive','err'); } } }
 /* safety net: never let an unexpected error white-screen the app */
 window.addEventListener('error', function(){ try{ toast('Something went wrong — the action was cancelled','err'); }catch(_){}});
 window.addEventListener('unhandledrejection', function(){ try{ toast('An operation failed — please try again','err'); }catch(_){}});
@@ -709,7 +748,10 @@ function showSharedError(){ setSync('error','No shared-drive access'); if(_share
    ids are dropped so deletions are honoured and can't be resurrected by sync. */
 function mergeArr(localArr,remoteArr,tombs){
   const m=new Map(); (remoteArr||[]).forEach(r=>{ if(r&&r.id) m.set(r.id,r); });
-  (localArr||[]).forEach(l=>{ if(!l||!l.id) return; const r=m.get(l.id); if(!r) m.set(l.id,l); else m.set(l.id,(l._ts||0)>=(r._ts||0)?l:r); });
+  (localArr||[]).forEach(l=>{ if(!l||!l.id) return; const r=m.get(l.id); if(!r){ m.set(l.id,l); return; }
+    const lt=l._ts||0, rt=r._ts||0;
+    if(lt>rt) m.set(l.id,l); else if(rt>lt) m.set(l.id,r);
+    else m.set(l.id, (l.storage==='onedrive'&&r.storage!=='onedrive')?l:r); }); // tie → prefer the offloaded (lean) copy
   if(tombs){ for(const id in tombs){ const rec=m.get(id); if(rec && (tombs[id]>=(rec._ts||0))) m.delete(id); } }
   return [...m.values()];
 }
@@ -746,7 +788,8 @@ async function fetchRemote(tok){
   return {status:200,data:await res.json()};
 }
 async function downloadFromOneDrive(){
-  if(!ONLINE) return;
+  if(!ONLINE || _syncBusy) return;
+  _syncBusy=true;
   setSync('syncing','Loading…');
   try{
     const tok=await getToken();
@@ -757,7 +800,8 @@ async function downloadFromOneDrive(){
       if(key!==_lastSyncKey){ _lastSyncKey=key; if(!isModalOpen()) renderActive(); }
       updateTicketBadge(); }
     setSync('connected','Synced');
-  }catch(e){ console.warn('download',e); if(e&&e.code===403){ showSharedError(); return; } setSync('error','Sync error'); }
+  }catch(e){ console.warn('download',e); if(e&&e.code===403){ showSharedError(); } else { setSync('error','Sync error'); } }
+  finally{ _syncBusy=false; }
 }
 let _lastSyncKey='';
 function isModalOpen(){ const m=document.getElementById('modalBg'); return m&&m.classList.contains('open'); }
@@ -780,8 +824,8 @@ function updateRoleUI(){
   refreshNav();
 }
 /* light background sync so team changes (incl. role changes) propagate on their own */
-let _pollStarted=false;
-function startPolling(){ if(_pollStarted) return; _pollStarted=true; setInterval(function(){ if(ONLINE && !isModalOpen()){ downloadFromOneDrive().catch(function(){}); } }, 45000); }
+let _pollStarted=false, _syncBusy=false;
+function startPolling(){ if(_pollStarted) return; _pollStarted=true; setInterval(function(){ if(ONLINE && !isModalOpen() && !_syncBusy){ downloadFromOneDrive().catch(function(){}); } }, 300000); }
 async function saveToOneDrive(){
   if(!ONLINE) return;
   setSync('syncing','Saving…');
@@ -800,6 +844,18 @@ async function saveToOneDrive(){
   }catch(e){ console.warn('save',e); setSync('error','Sync error'); }
 }
 async function manualSync(){ if(!ONLINE){ toast('Offline mode — data is on this device only'); return; } await downloadFromOneDrive(); await saveToOneDrive(); toast('Synced with OneDrive','ok'); }
+/* PUT the current state WITHOUT re-downloading/merging first — used by admin
+   maintenance (offload/purge) so it can't re-crash on the big remote file or
+   re-merge the old embedded data back in. */
+async function saveToOneDriveDirect(){
+  if(!ONLINE) return false; setSync('syncing','Saving…');
+  try{ const tok=await getToken(); const ref=_fileRef||await resolveFileRef(tok); const putUrl=ref?refContentUrl(ref):driveRootUrl();
+    let res=await fetch(putUrl,{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(state)});
+    if(res.status===403){ showSharedError(); return false; }
+    if(res.status===404&&ref){ _fileRef=null; res=await fetch(driveRootUrl(),{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(state)}); }
+    if(!res.ok) throw new Error('HTTP '+res.status); setSync('connected','Synced'); return true;
+  }catch(e){ console.warn('direct save',e); setSync('error','Sync error'); return false; }
+}
 function setSync(cls,txt){ const d=document.getElementById('syncDot'), t=document.getElementById('syncText'); if(d) d.className='sync-dot '+(cls||''); if(t) t.textContent=txt; }
 
 /* ============================================================
@@ -1562,7 +1618,11 @@ function buildCertHtml(){
 }
 function wrapDoc(title,body){ const logo=state.meta&&state.meta.logo; const head=`<div class="doc-logo">${logo?`<img src="${logo}">`:`<span class="wordmark">O<span class="x">X</span>EFIT</span><small>BY CoreV</small>`}</div><h1 class="doc-title">${esc(title)}</h1>`; return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${DOC_CSS}</style></head><body>${head}${body}</body></html>`; }
 function generateCert(){ const {title,body}=buildCertHtml(); const full=wrapDoc(title,body).replace('</body>',`<div class="no-print" style="text-align:center;margin:26px"><button onclick="window.print()">🖨 Print / Save as PDF</button></div></body>`); const w=window.open('','_blank'); if(!w){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([full],{type:'text/html'})); a.download=title.replace(/[^\w]+/g,'_')+'.html'; a.click(); toast('Popup blocked — downloaded the document'); return; } w.document.open(); w.document.write(full); w.document.close(); setTimeout(()=>{try{w.focus();}catch(e){}},150); }
-function saveCertToDocs(){ if(!canEditModule('documents')){ toast('Only admins can save to Important Documents','err'); return; } const {title,body,expiry}=buildCertHtml(); const full=wrapDoc(title,body); const dataUrl='data:text/html;base64,'+btoa(unescape(encodeURIComponent(full))); state.documents.unshift({id:uid(), title, category:certType, fileName:title.replace(/[^\w]+/g,'_')+'.html', mime:'text/html', size:full.length, data:dataUrl, notes:'Auto-generated'+(certOrderId?(' for '+certOrderId):''), expiryDate:expiry, by:CURRENT_USER, date:new Date().toISOString().slice(0,10), _ts:Date.now()}); persist(); toast('Saved to Important Documents','ok'); }
+async function saveCertToDocs(){ if(!canEditModule('documents')){ toast('Only admins can save to Important Documents','err'); return; } const {title,body,expiry}=buildCertHtml(); const full=wrapDoc(title,body); const fileName=title.replace(/[^\w]+/g,'_')+'.html';
+  const rec={id:uid(), title, category:certType, fileName, mime:'text/html', notes:'Auto-generated'+(certOrderId?(' for '+certOrderId):''), expiryDate:expiry, by:CURRENT_USER, date:new Date().toISOString().slice(0,10), _ts:Date.now()};
+  try{ toast('Saving to OneDrive…'); const blob=new Blob([full],{type:'text/html'}); const ref=await graphUploadAttachment({name:fileName,mime:'text/html',size:blob.size,file:blob}); rec.storage='onedrive'; rec.driveId=ref.driveId; rec.itemId=ref.itemId; rec.size=blob.size; }
+  catch(e){ console.warn('cert save',e); rec.storage='inline'; rec.data='data:text/html;base64,'+btoa(unescape(encodeURIComponent(full))); rec.size=full.length; }
+  state.documents.unshift(rec); persist(); toast('Saved to Important Documents','ok'); }
 
 /* ============================================================
    VIEW: SHIPPING & COSTS  (COSTING log)
@@ -1648,9 +1708,9 @@ function delCost(id){ if(!canDelete())return; deleteFrom('costing',id); toast('D
 ============================================================ */
 let _logImg=null, _logDoc=null;
 const DOC_TYPES=['Delivery Note','Signed POD','Invoice','Warranty','Other document'];
-const INLINE_MAX=3*1024*1024; // files ≤3MB embedded inline; larger go to OneDrive as real files
+const INLINE_MAX=350*1024; // ≤350KB embedded inline; larger files go to OneDrive as real files (keeps the DB small)
 function isPhoto(l){ return l.kind!=='doc'; }
-function logImgSrc(l){ return l.data||l.img||''; }
+function logImgSrc(l){ return l.thumb||l.data||l.img||''; }
 function docIcon(mime,name){ const n=(name||'').toLowerCase(); if((mime||'').includes('pdf')||n.endsWith('.pdf')) return '📄'; if(/(xls|sheet|csv)/.test((mime||'')+n)) return '📊'; if(/(word|doc)/.test((mime||'')+n)) return '📝'; if((mime||'').startsWith('image/')) return '🖼️'; return '📎'; }
 function renderLogs(){
   const logs=(state.logs||[]).slice();
@@ -1694,10 +1754,16 @@ function openLog(){ if(!requireEdit('logs'))return; _logImg=null;
     <div class="fld full"><label>Caption / note</label><input name="caption" placeholder="e.g. Installed &amp; handover complete"></div>
     <div class="fld full"><label>Photo</label><div style="display:flex;gap:12px;align-items:center"><button class="btn" type="button" onclick="chooseLogImg()">📷 Choose image</button><span id="logImgState" class="muted">No image selected</span></div><div id="logPreview" style="margin-top:10px"></div></div>
   </div>`,
-  ()=>{ const f=getForm(); if(!f.orderId){ toast('Select an order','err'); return; } if(!_logImg){ toast('Choose an image first','err'); return; }
+  async ()=>{ const f=getForm(); if(!f.orderId){ toast('Select an order','err'); return; } if(!_logImg){ toast('Choose an image first','err'); return; }
     const d=state.deliveries.find(x=>x.id===f.orderId);
-    state.logs.unshift({id:uid(),kind:'photo',orderId:f.orderId,receiver:d?d.receiver:'',caption:f.caption||'',data:_logImg,by:CURRENT_USER,date:new Date().toISOString().slice(0,10),_ts:Date.now()});
-    persist(); closeModal(); toast('Photo uploaded','ok'); });
+    const rec={id:uid(),kind:'photo',orderId:f.orderId,receiver:d?d.receiver:'',caption:f.caption||'',by:CURRENT_USER,date:new Date().toISOString().slice(0,10),_ts:Date.now()};
+    try{
+      rec.thumb=await makeThumb(_logImg);
+      const blob=dataURLtoBlob(_logImg);
+      if(blob){ const ref=await graphUploadAttachment({name:'photo_'+Date.now()+'.jpg',mime:'image/jpeg',size:blob.size,file:blob}); rec.storage='onedrive'; rec.driveId=ref.driveId; rec.itemId=ref.itemId; rec.fileName='photo.jpg'; rec.mime='image/jpeg'; }
+      else { rec.storage='inline'; rec.data=_logImg; }
+    }catch(e){ console.warn('photo upload',e); rec.storage='inline'; rec.data=_logImg; }
+    state.logs.unshift(rec); persist(); closeModal(); toast('Photo uploaded','ok'); });
 }
 function chooseLogImg(){ pickImage(1000,'image/jpeg',0.72, du=>{ _logImg=du; const s=document.getElementById('logImgState'); if(s){ s.textContent='✅ Image ready'; s.style.color='var(--success)'; } const p=document.getElementById('logPreview'); if(p) p.innerHTML=`<img src="${du}" style="max-width:100%;max-height:220px;border-radius:10px;border:1px solid var(--border)">`; }); }
 function openDoc(){ if(!requireEdit('logs'))return; _logDoc=null;
@@ -1759,7 +1825,15 @@ async function downloadStored(l){
   } else if(l.data){ const a=document.createElement('a'); a.href=l.data; a.download=l.fileName||'file'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); }
 }
 async function openAttachment(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; try{ await downloadStored(l); }catch(e){ console.warn(e); toast('Could not open the file','err'); } }
-function viewLogImg(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; modal(esc(l.orderId)+' — '+esc(l.caption||'photo'),`<img src="${logImgSrc(l)}" style="width:100%;border-radius:10px"><div class="muted" style="margin-top:8px;font-size:12px">Uploaded by ${esc(l.by||'')} on ${fmtDate(l.date)}</div>`,null,true); }
+/* helpers for offloading embedded base64 blobs to OneDrive */
+function dataURLtoBlob(durl){ try{ const c=durl.indexOf(','); const meta=durl.slice(0,c), b64=durl.slice(c+1); const mime=(meta.match(/data:(.*?);/)||[])[1]||'application/octet-stream'; const bin=atob(b64); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i); return new Blob([arr],{type:mime}); }catch(e){ return null; } }
+function makeThumb(dataURL){ return new Promise(res=>{ const img=new Image(); img.onload=()=>{ try{ const S=220; const sc=Math.min(1,S/Math.max(img.width,img.height)); const w=Math.round(img.width*sc)||1,h=Math.round(img.height*sc)||1; const c=document.createElement('canvas'); c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); res(c.toDataURL('image/jpeg',0.5)); }catch(e){ res(''); } }; img.onerror=()=>res(''); img.src=dataURL; }); }
+function guessExt(mime){ const m={'application/pdf':'.pdf','image/jpeg':'.jpg','image/png':'.png','text/html':'.html'}; return m[mime]||''; }
+function inlineBytes(){ let b=0; const add=x=>{ if(x&&x.data&&x.storage!=='onedrive') b+=x.data.length; }; (state.logs||[]).forEach(add); (state.documents||[]).forEach(add); if(state.meta){['logo','signature','stamp'].forEach(k=>{ if(state.meta[k]) b+=state.meta[k].length; });} return b; }
+function fmtBytes(b){ return b>=1048576?((b/1048576).toFixed(1)+' MB'):((b/1024|0)+' KB'); }
+async function viewLogImg(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; let src=l.data||l.img||l.thumb||'';
+  if(l.storage==='onedrive'){ try{ const tok=await getToken(); const res=await fetch('https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(l.driveId)+'/items/'+encodeURIComponent(l.itemId)+'/content',{headers:{Authorization:'Bearer '+tok}}); if(res.ok){ const blob=await res.blob(); src=URL.createObjectURL(blob); } }catch(e){ console.warn(e); } }
+  modal(esc(l.orderId)+' — '+esc(l.caption||'photo'),`<img src="${src}" style="width:100%;border-radius:10px"><div class="muted" style="margin-top:8px;font-size:12px">Uploaded by ${esc(l.by||'')} on ${fmtDate(l.date)}</div>`,null,true); }
 function delLog(id){ if(!canDelete())return; const l=state.logs.find(x=>x.id===id); if(!confirm('Delete this '+(l&&l.kind==='doc'?'document':'photo')+'?'))return; deleteFrom('logs',id); toast('Deleted'); }
 
 /* ============================================================
