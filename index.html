@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v2.8</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v2.9</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -228,7 +228,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v2.8</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v2.9</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -251,7 +251,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v2.8</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v2.9</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -294,8 +294,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.8
-   Build: v2.8 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.9
+   Build: v2.9 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -752,10 +752,36 @@ async function downloadFromOneDrive(){
     const tok=await getToken();
     const r=await fetchRemote(tok);
     if(r.status===404){ await saveToOneDrive(); setSync('connected','Synced'); return; }
-    if(r.data && r.data.deliveries){ mergeState(r.data); saveLocal(); applyBranding(); renderActive(); updateTicketBadge(); }
+    if(r.data && r.data.deliveries){ mergeState(r.data); saveLocal(); applyBranding(); refreshRole();
+      const key=((state.meta&&state.meta.updated)||'')+'|'+(state.aclTs||0);
+      if(key!==_lastSyncKey){ _lastSyncKey=key; if(!isModalOpen()) renderActive(); }
+      updateTicketBadge(); }
     setSync('connected','Synced');
   }catch(e){ console.warn('download',e); if(e&&e.code===403){ showSharedError(); return; } setSync('error','Sync error'); }
 }
+let _lastSyncKey='';
+function isModalOpen(){ const m=document.getElementById('modalBg'); return m&&m.classList.contains('open'); }
+/* Re-resolve the signed-in user's role from the (possibly just-synced) ACL and
+   update the screen live — so a promotion/demotion by an admin takes effect
+   without the person needing to sign out and back in. */
+function refreshRole(){
+  if(!CURRENT_USER) return; ensureAcl();
+  const u=state.acl.users.find(x=>x.name===CURRENT_USER);
+  const newRole=u?(u.role==='admin'?'admin':'member'):CURRENT_ROLE;
+  if(newRole!==CURRENT_ROLE){
+    CURRENT_ROLE=newRole; updateRoleUI();
+    toast('Your access was updated — you are now '+(newRole==='admin'?'an Admin (full access)':'a Member'),'ok');
+    if(!isModalOpen()) renderActive();
+  } else { updateRoleUI(); }
+}
+function updateRoleUI(){
+  const rb=document.getElementById('roleBadge'); if(rb){ rb.className='role-badge '+(CURRENT_ROLE==='admin'?'admin':'ops'); rb.textContent=CURRENT_ROLE==='admin'?'Admin':'Member'; }
+  const sb=document.getElementById('settingsBtn'); if(sb) sb.style.display=CURRENT_ROLE==='admin'?'flex':'none';
+  refreshNav();
+}
+/* light background sync so team changes (incl. role changes) propagate on their own */
+let _pollStarted=false;
+function startPolling(){ if(_pollStarted) return; _pollStarted=true; setInterval(function(){ if(ONLINE && !isModalOpen()){ downloadFromOneDrive().catch(function(){}); } }, 45000); }
 async function saveToOneDrive(){
   if(!ONLINE) return;
   setSync('syncing','Saving…');
@@ -800,6 +826,7 @@ function enterApp(){
   rb.textContent=CURRENT_ROLE==='admin'?'Admin':'Member';
   document.getElementById('settingsBtn').style.display = CURRENT_ROLE==='admin'?'flex':'none';
   applyBranding(); refreshNav();
+  startPolling();
   go('dashboard');
 }
 function refreshNav(){
