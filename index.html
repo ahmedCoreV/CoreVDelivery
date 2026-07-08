@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v2.5</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v2.6</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v2.5</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v2.6</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v2.5</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v2.6</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -278,6 +278,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="nav-section">Company</div>
       <div class="nav-item" data-view="documents" onclick="go('documents')"><span class="nav-ico">📁</span><span class="lbl">Important Documents</span></div>
       <div class="nav-item" data-view="certificates" onclick="go('certificates')"><span class="nav-ico">📜</span><span class="lbl">Certificates &amp; Reports</span></div>
+      <div class="nav-item" data-view="access" onclick="go('access')"><span class="nav-ico">🔐</span><span class="lbl">Access Control</span></div>
       <div class="nav-section">Support</div>
       <div class="nav-item" data-view="tickets" onclick="go('tickets')"><span class="nav-ico">🎫</span><span class="lbl">Tickets</span><span class="nav-badge" id="ticketBadge" style="display:none">0</span></div>
       <div class="nav-item" data-view="reviews" onclick="go('reviews')"><span class="nav-ico">⭐</span><span class="lbl">Customer Reviews</span></div>
@@ -292,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.5
-   Build: v2.5 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.6
+   Build: v2.6 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -323,29 +324,50 @@ const REVIEWS_CONFIG = {
 };
 
 /* ─────────── ROLES (REQUIREMENT C) ─────────── */
-/* ─────────── ROLES (v1.5) ───────────
-   Ahmed, Gladys           → Admin: full control everywhere (+ delete, branding)
-   Charlie, Prem           → Contributor: add/modify ONLY in Deliveries,
-                             Spares & Stock, and Logs & Images. View-only elsewhere.
-   Everyone else authorized → Viewer (read-only everywhere)            */
-const ADMIN_USERS   = ['Ahmed','Gladys'];
-const CONTRIB_USERS = ['Charlie','Prem'];
-const CONTRIB_MODULES = ['deliveries','spares','logs'];   // where contributors may add/modify
-function roleOf(name){
-  if(ADMIN_USERS.includes(name))   return 'admin';
-  if(CONTRIB_USERS.includes(name)) return 'contributor';
-  return 'viewer';
-}
-/* M365 email → tracker name */
+/* ─────────── ACCESS CONTROL (v2.6) ───────────
+   Admin-managed, synced to the team. Each member has a per-section level:
+   'none' (hidden) · 'view' (read-only) · 'edit' (add/modify). Admins = full.
+   Deletes remain admin-only. Defaults below seed the original v1.5 rules. */
+const SECTIONS=[
+  ['dashboard','Executive Dashboard'],['deliveries','Deliveries'],['spares','Spares & Stock'],
+  ['inbound','Inbound Shipments'],['shipping','Shipping & Costs'],['logs','Logs & Images'],
+  ['events','Event Setup'],['documents','Important Documents'],['certificates','Certificates & Reports'],
+  ['tickets','Tickets'],['reviews','Customer Reviews']
+];
+const ACCESS_LEVELS=['none','view','edit'];
+const ADMIN_USERS   = ['Ahmed','Gladys'];        // bootstrap admins (default only)
+const CONTRIB_USERS = ['Charlie','Prem'];        // bootstrap contributors (default only)
+const CONTRIB_MODULES = ['deliveries','spares','logs'];
+function roleOf(name){ if(ADMIN_USERS.includes(name)) return 'admin'; if(CONTRIB_USERS.includes(name)) return 'contributor'; return 'viewer'; }
+/* M365 email → tracker name (bootstrap roster; admins can add more in-app) */
 const USER_EMAILS = {
-  'ahmed@core-velocity.com':'Ahmed',
-  'gladys@core-velocity.com':'Gladys',
-  'charlie@core-velocity.com':'Charlie',
-  'prem@core-velocity.com':'Prem',
-  'sami@core-velocity.com':'Sami',
-  'kamal@core-velocity.com':'Kamal'
+  'ahmed@core-velocity.com':'Ahmed','gladys@core-velocity.com':'Gladys','charlie@core-velocity.com':'Charlie',
+  'prem@core-velocity.com':'Prem','sami@core-velocity.com':'Sami','kamal@core-velocity.com':'Kamal'
 };
 const ALL_USERS = [...ADMIN_USERS, ...CONTRIB_USERS, 'Sami', 'Kamal'];
+function defaultAcl(){
+  const users=[
+    {name:'Ahmed',email:'ahmed@core-velocity.com',role:'admin'},
+    {name:'Gladys',email:'gladys@core-velocity.com',role:'admin'},
+    {name:'Charlie',email:'charlie@core-velocity.com',role:'member'},
+    {name:'Prem',email:'prem@core-velocity.com',role:'member'},
+    {name:'Sami',email:'sami@core-velocity.com',role:'member'},
+    {name:'Kamal',email:'kamal@core-velocity.com',role:'member'}
+  ];
+  const perms={};
+  users.forEach(u=>{ perms[u.name]={}; SECTIONS.forEach(([k])=>{ perms[u.name][k]= u.role==='admin'?'edit' : (CONTRIB_MODULES.includes(k)&&CONTRIB_USERS.includes(u.name))?'edit':'view'; }); });
+  return {users, perms};
+}
+function ensureAcl(){ if(!state.acl||!Array.isArray(state.acl.users)||!state.acl.users.length){ state.acl=defaultAcl(); if(!state.aclTs) state.aclTs=Date.now(); } if(!state.acl.perms) state.acl.perms={}; }
+function aclUser(email){ const a=state.acl; if(a&&a.users){ return a.users.find(u=>(u.email||'').toLowerCase()===(email||'').toLowerCase().trim()); } return null; }
+function resolveUser(email){
+  ensureAcl();
+  const u=aclUser(email);
+  if(u) return {name:u.name, role:u.role==='admin'?'admin':'member'};
+  const nm=USER_EMAILS[(email||'').toLowerCase().trim()];   // bootstrap fallback
+  if(nm) return {name:nm, role:ADMIN_USERS.includes(nm)?'admin':'member'};
+  return null;
+}
 
 /* ─────────── DROPDOWN CODE LISTS (from CODES / Code 2 sheets) ─────────── */
 const MODELS   = ['XS1 FLOW','XS1 FLOW+','XS1 PEAK','XS1 PEAK+','XP1'];
@@ -379,7 +401,7 @@ let reviewSheetId = REVIEWS_CONFIG.sheetId || (function(){ try{ return localStor
 let activeView = 'dashboard';
 const LS_KEY = 'oxefit_delivery_v1';
 
-let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], logs:[], events:[], inbound:[], documents:[], tombstones:{}, meta:{updated:null,by:null,logo:null} };
+let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], logs:[], events:[], inbound:[], documents:[], acl:null, aclTs:0, tombstones:{}, meta:{updated:null,by:null,logo:null} };
 const COLLECTIONS = ['deliveries','stock','accessories','costing','tickets','reviews','logs','events','inbound','documents'];
 
 /* ─────────── SEED DATA (sample rows from your Excel template) ─────────── */
@@ -578,11 +600,10 @@ function commitCrop(){ const c=document.getElementById('cropCanvas'); if(!c) ret
   state.meta=state.meta||{}; state.meta.logo=dataUrl; persist(); applyBranding(); closeModal(); openSettings(); toast('Logo updated','ok'); }
 
 /* ─────────── PERMISSIONS (module-scoped, v1.5) ─────────── */
-function canEditModule(mod){
-  if(CURRENT_ROLE==='admin') return true;
-  if(CURRENT_ROLE==='contributor') return CONTRIB_MODULES.includes(mod);
-  return false;
-}
+/* ─────────── PERMISSIONS (ACL-driven, v2.6) ─────────── */
+function getPerm(mod){ if(CURRENT_ROLE==='admin') return 'edit'; const p=state.acl&&state.acl.perms&&state.acl.perms[CURRENT_USER]; return (p&&p[mod])||'view'; }
+function canViewModule(mod){ if(CURRENT_ROLE==='admin') return true; return getPerm(mod)!=='none'; }
+function canEditModule(mod){ if(CURRENT_ROLE==='admin') return true; return getPerm(mod)==='edit'; }
 function canDelete(){ return CURRENT_ROLE==='admin'; }   // deletes stay admin-only
 function canEditRow(row){ if(CURRENT_ROLE==='admin') return true; if(!canEditModule('deliveries')) return false; return !row.locked; }
 function requireEdit(mod){ if(!canEditModule(mod)){ toast('You have view-only access to this section','err'); return false;} return true; }
@@ -593,7 +614,7 @@ function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); 
 /* safety net: never let an unexpected error white-screen the app */
 window.addEventListener('error', function(){ try{ toast('Something went wrong — the action was cancelled','err'); }catch(_){}});
 window.addEventListener('unhandledrejection', function(){ try{ toast('An operation failed — please try again','err'); }catch(_){}});
-function loadLocal(){ try{ const r=localStorage.getItem(LS_KEY); if(r){ state=JSON.parse(r); COLLECTIONS.forEach(k=>{ if(!Array.isArray(state[k])) state[k]=[]; }); if(!state.meta) state.meta={}; if(!state.tombstones||typeof state.tombstones!=='object') state.tombstones={}; return true; } }catch(e){} return false; }
+function loadLocal(){ try{ const r=localStorage.getItem(LS_KEY); if(r){ state=JSON.parse(r); COLLECTIONS.forEach(k=>{ if(!Array.isArray(state[k])) state[k]=[]; }); if(!state.meta) state.meta={}; if(!state.tombstones||typeof state.tombstones!=='object') state.tombstones={}; ensureAcl(); return true; } }catch(e){} return false; }
 function touch(){ state.meta={...(state.meta||{}), updated:new Date().toISOString(), by:CURRENT_USER}; }
 /* Tombstone a deleted record so the merge-on-sync can't resurrect it
    and so the deletion propagates to every teammate's copy. */
@@ -613,18 +634,18 @@ function initMsal(){
   }catch(e){ console.warn('MSAL init failed',e); return false; }
 }
 async function loginWithMicrosoft(){
-  if(typeof msal==='undefined'||!initMsal()){ toast('Microsoft sign-in unavailable — use offline demo','err'); return; }
+  if(typeof msal==='undefined'||!initMsal()){ toast('Microsoft sign-in unavailable','err'); return; }
   try{
     const res = await msalInstance.loginPopup({ scopes:ONEDRIVE_CONFIG.scopes, prompt:'select_account' });
-    msalAccount = res.account;
+    msalAccount = res.account; ONLINE=true;
     const email=(msalAccount.username||'').toLowerCase().trim();
-    const name = USER_EMAILS[email];
-    if(!name){
-      try{ await msalInstance.logoutPopup({account:msalAccount}); }catch(_){}
-      toast('This Microsoft account is not authorized for the tracker','err'); return;
-    }
-    CURRENT_USER=name; CURRENT_ROLE=roleOf(name); ONLINE=true;
     setSync('syncing','Connecting…');
+    // pull the latest shared data (incl. the access-control list) BEFORE deciding access
+    try{ const tok=await getToken(); const r=await fetchRemote(tok); if(r&&r.status===200&&r.data&&r.data.deliveries){ mergeState(r.data); saveLocal(); } }catch(e){ console.warn('pre-login sync',e); }
+    ensureAcl();
+    const u=resolveUser(email);
+    if(!u){ try{ await msalInstance.logoutPopup({account:msalAccount}); }catch(_){} ONLINE=false; toast('Your account isn\'t on the team yet — ask an admin to add you in Access Control','err'); return; }
+    CURRENT_USER=u.name; CURRENT_ROLE=u.role;
     enterApp();
     try{ await downloadFromOneDrive(); }catch(e){ console.warn(e); }
     setSync('connected','Synced');
@@ -696,6 +717,9 @@ function mergeState(remote){
   const lu=Date.parse((state.meta&&state.meta.updated)||0)||0, ru=Date.parse((remote.meta&&remote.meta.updated)||0)||0;
   if(ru>lu && remote.meta){ state.meta=remote.meta; }
   else if(remote.meta){ state.meta=state.meta||{}; ['logo','signature','stamp'].forEach(k=>{ if(remote.meta[k]&&!state.meta[k]) state.meta[k]=remote.meta[k]; }); }
+  // access-control list: newest edit wins
+  if((remote.aclTs||0) > (state.aclTs||0) && remote.acl){ state.acl=remote.acl; state.aclTs=remote.aclTs; }
+  ensureAcl();
 }
 async function fetchRemote(tok){
   const ref=await resolveFileRef(tok);
@@ -749,6 +773,7 @@ function setSync(cls,txt){ const d=document.getElementById('syncDot'), t=documen
 ============================================================ */
 function boot(){
   if(!loadLocal()) seedData();
+  ensureAcl();
   if(!ONEDRIVE_CONFIG.clientId){
     const b=document.getElementById('offlineBanner');
     b.style.display='block'; b.textContent='⚠ Azure client ID not set — sign-in unavailable. Set ONEDRIVE_CONFIG.clientId.';
@@ -757,16 +782,22 @@ function boot(){
   applyBranding();
 }
 function enterApp(){
+  ensureAcl();
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('userName').textContent=CURRENT_USER;
   document.getElementById('userAvatar').textContent=(CURRENT_USER||'?').slice(0,2).toUpperCase();
   const rb=document.getElementById('roleBadge');
-  rb.className='role-badge '+(CURRENT_ROLE==='admin'?'admin':CURRENT_ROLE==='contributor'?'ops':'viewer');
-  rb.textContent=CURRENT_ROLE==='admin'?'Admin':CURRENT_ROLE==='contributor'?'Contributor':'Viewer';
+  rb.className='role-badge '+(CURRENT_ROLE==='admin'?'admin':'ops');
+  rb.textContent=CURRENT_ROLE==='admin'?'Admin':'Member';
   document.getElementById('settingsBtn').style.display = CURRENT_ROLE==='admin'?'flex':'none';
-  applyBranding();
+  applyBranding(); refreshNav();
   go('dashboard');
+}
+function refreshNav(){
+  document.querySelectorAll('.nav-item[data-view]').forEach(n=>{ const v=n.dataset.view; const show=(v==='access')?(CURRENT_ROLE==='admin'):canViewModule(v); n.style.display=show?'':'none'; });
+  // hide a section header if all its items are hidden
+  document.querySelectorAll('.sidebar .nav-section').forEach(h=>{ let el=h.nextElementSibling, any=false; while(el&&el.classList.contains('nav-item')){ if(el.style.display!=='none') any=true; el=el.nextElementSibling; } h.style.display=any?'':'none'; });
 }
 function logout(){
   if(ONLINE && msalInstance && msalAccount){ try{ msalInstance.logoutPopup({account:msalAccount}); }catch(_){} }
@@ -778,13 +809,16 @@ function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('m
    ROUTER
 ============================================================ */
 function go(view){
+  if(view==='access'){ if(CURRENT_ROLE!=='admin'){ toast('Admins only','err'); return; } }
+  else if(view!=='dashboard' && !canViewModule(view)){ toast('You don\'t have access to that section','err'); view='dashboard'; }
   activeView=view;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===view));
   renderActive();
 }
 function renderActive(){
-  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,inbound:renderInbound,shipping:renderShipping,logs:renderLogs,events:renderEvents,documents:renderDocuments,certificates:renderCertificates,tickets:renderTickets,reviews:renderReviews}[activeView];
+  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,inbound:renderInbound,shipping:renderShipping,logs:renderLogs,events:renderEvents,documents:renderDocuments,certificates:renderCertificates,access:renderAccess,tickets:renderTickets,reviews:renderReviews}[activeView];
   if(r) document.getElementById('mainContent').innerHTML='', r();
+  refreshNav();
   updateTicketBadge();
 }
 function updateTicketBadge(){
@@ -1222,6 +1256,74 @@ function openDocument(id){ if(!requireEdit('documents'))return; _vaultFile=null;
 function chooseVaultFile(){ pickFile(fileObj=>{ _vaultFile=fileObj; const s=document.getElementById('vaultFileState'); if(s){ s.textContent='✅ '+fileObj.name+' ('+fileSize(fileObj.size)+')'+(fileObj.storage==='onedrive'?' — will upload to OneDrive on save':''); s.style.color='var(--success)'; } }); }
 async function openDocFile(id){ const d=state.documents.find(x=>x.id===id); if(!d) return; try{ await downloadStored(d); }catch(e){ console.warn(e); toast('Could not open the document','err'); } }
 function delDocument(id){ if(!canDelete())return; if(!confirm('Delete this document?'))return; deleteFrom('documents',id); toast('Deleted'); }
+
+/* ============================================================
+   VIEW: ACCESS CONTROL  (admin-managed per-section RBAC, synced)
+============================================================ */
+function renderAccess(){
+  if(CURRENT_ROLE!=='admin'){ document.getElementById('mainContent').insertAdjacentHTML('beforeend','<div class="panel"><div class="empty">Admins only.</div></div>'); return; }
+  ensureAcl();
+  const users=state.acl.users.slice();
+  const levelPill=lv=>`<span class="pill ${lv==='edit'?'green':lv==='none'?'red':'grey'}">${lv}</span>`;
+  const summary=u=>{ if(u.role==='admin') return '<span class="tag">Full access (admin)</span>'; const p=state.acl.perms[u.name]||{}; const e=SECTIONS.filter(([k])=>p[k]==='edit').length, n=SECTIONS.filter(([k])=>p[k]==='none').length; return `<span class="muted" style="font-size:12px">${e} edit · ${SECTIONS.length-e-n} view · ${n} hidden</span>`; };
+  document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
+  <div class="view active">
+    <div class="page-head">
+      <div><div class="page-title">Access Control</div><div class="page-sub">Assign who can view or edit each section. Changes sync to the whole team.</div></div>
+      <div class="toolbar"><button class="btn primary" onclick="addMember()">＋ Add team member</button></div>
+    </div>
+    <div class="panel" style="margin-bottom:14px"><h3>👥 Team members</h3>
+      <div class="table-wrap" style="box-shadow:none;border:none"><table><thead><tr><th>Name</th><th>Microsoft email</th><th>Role</th><th>Access</th><th>⚙</th></tr></thead><tbody>
+      ${users.map(u=>`<tr><td><b>${esc(u.name)}</b>${u.name===CURRENT_USER?' <span class="tag">you</span>':''}</td><td>${esc(u.email||'')}</td>
+        <td><span class="role-badge ${u.role==='admin'?'admin':'ops'}">${u.role==='admin'?'Admin':'Member'}</span></td>
+        <td>${summary(u)}</td>
+        <td class="actions"><button class="mini-btn" onclick="editAccess('${esc(u.name)}')">Edit access</button> <button class="mini-btn del" onclick="removeMember('${esc(u.name)}')">✕</button></td></tr>`).join('')}
+      </tbody></table></div>
+    </div>
+    <div class="panel"><h3>🔎 Access matrix</h3><div class="p-sub">Read-only overview — Admin = full access. Use “Edit access” to change.</div>
+      <div class="table-wrap" style="box-shadow:none;border:none"><table><thead><tr><th>Section</th>${users.map(u=>`<th>${esc(u.name)}</th>`).join('')}</tr></thead><tbody>
+      ${SECTIONS.map(([k,label])=>`<tr><td><b>${label}</b></td>${users.map(u=>`<td>${u.role==='admin'?levelPill('edit'):levelPill((state.acl.perms[u.name]||{})[k]||'view')}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div>
+    </div>
+  </div>`);
+}
+function addMember(){ if(CURRENT_ROLE!=='admin')return;
+  modal('Add team member',`<div class="form-grid">
+    <div class="fld"><label>Name (as shown in the app)</label><input name="name" placeholder="e.g. Layla"></div>
+    <div class="fld"><label>Microsoft email</label><input name="email" placeholder="name@core-velocity.com"></div>
+    <div class="fld"><label>Role</label><select name="role"><option value="member">Member</option><option value="admin">Admin (full access)</option></select></div>
+    <div class="fld full hint">Members start with <b>view</b> access to every section; set per-section Edit/None afterwards with “Edit access”. The person signs in with this Microsoft account.</div>
+  </div>`,
+  ()=>{ const f=getForm(); const name=(f.name||'').trim(), email=(f.email||'').trim().toLowerCase(); if(!name||!email){ toast('Name and email required','err'); return; }
+    if(state.acl.users.some(u=>u.name.toLowerCase()===name.toLowerCase())){ toast('That name already exists','err'); return; }
+    if(state.acl.users.some(u=>(u.email||'').toLowerCase()===email)){ toast('That email already exists','err'); return; }
+    state.acl.users.push({name,email,role:f.role==='admin'?'admin':'member'});
+    state.acl.perms[name]={}; SECTIONS.forEach(([k])=>state.acl.perms[name][k]='view');
+    state.aclTs=Date.now(); persist(); closeModal(); toast('Member added','ok'); });
+}
+function editAccess(name){ if(CURRENT_ROLE!=='admin')return; const u=state.acl.users.find(x=>x.name===name); if(!u) return; const p=state.acl.perms[name]||{};
+  const seg=(k)=>`<div class="fld" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0"><label style="margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text)">${SECTIONS.find(s=>s[0]===k)[1]}</label>
+    <select name="sec_${k}" style="width:150px">${ACCESS_LEVELS.map(l=>`<option value="${l}" ${(p[k]||'view')===l?'selected':''}>${l==='none'?'No access':l==='view'?'View only':'Edit'}</option>`).join('')}</select></div>`;
+  modal('Edit access — '+esc(name),`
+    <div class="fld"><label>Role</label><select name="role" onchange="document.getElementById('secWrap').style.opacity=this.value==='admin'?0.4:1;document.getElementById('secWrap').style.pointerEvents=this.value==='admin'?'none':'auto'">
+      <option value="member" ${u.role!=='admin'?'selected':''}>Member (per-section access below)</option>
+      <option value="admin" ${u.role==='admin'?'selected':''}>Admin (full access)</option></select></div>
+    <div id="secWrap" style="display:flex;flex-direction:column;gap:9px;margin-top:8px;${u.role==='admin'?'opacity:.4;pointer-events:none':''}">
+      <div class="p-sub" style="margin:0">Per-section access</div>
+      ${SECTIONS.map(s=>seg(s[0])).join('')}
+    </div>`,
+  ()=>{ const f=getForm(); u.role=f.role==='admin'?'admin':'member';
+    if(u.role!=='admin'){ state.acl.perms[name]=state.acl.perms[name]||{}; SECTIONS.forEach(([k])=>{ state.acl.perms[name][k]=f['sec_'+k]||'view'; }); }
+    // never allow zero admins
+    if(!state.acl.users.some(x=>x.role==='admin')){ u.role='admin'; toast('At least one admin is required','err'); }
+    state.aclTs=Date.now(); persist(); closeModal(); toast('Access updated','ok'); if(name===CURRENT_USER){ CURRENT_ROLE=u.role; enterApp(); } });
+}
+function removeMember(name){ if(CURRENT_ROLE!=='admin')return; if(name===CURRENT_USER){ toast('You can\'t remove yourself','err'); return; }
+  const u=state.acl.users.find(x=>x.name===name); if(!u) return;
+  if(u.role==='admin' && state.acl.users.filter(x=>x.role==='admin').length<=1){ toast('At least one admin is required','err'); return; }
+  if(!confirm('Remove '+name+' from the team? They will lose access.'))return;
+  state.acl.users=state.acl.users.filter(x=>x.name!==name); delete state.acl.perms[name];
+  state.aclTs=Date.now(); persist(); toast('Member removed'); }
 
 /* ============================================================
    VIEW: CERTIFICATES & REPORTS  (generate from delivery + client details)
