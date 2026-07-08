@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v3.1</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v3.2</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v3.1</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v3.2</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v3.1</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v3.2</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -293,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.1
-   Build: v3.1 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.2
+   Build: v3.2 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -671,7 +671,13 @@ function touch(){ state.meta={...(state.meta||{}), updated:new Date().toISOStrin
    and so the deletion propagates to every teammate's copy. */
 function markDeleted(id){ if(!id) return; state.tombstones=state.tombstones||{}; state.tombstones[id]=Date.now(); }
 function deleteFrom(coll,id){ markDeleted(id); state[coll]=state[coll].filter(x=>x.id!==id); persist(); }
-async function persist(){ touch(); saveLocal(); renderActive(); if(ONLINE){ await saveToOneDrive(); } }
+async function persist(){ touch(); saveLocal(); renderActive(); scheduleSave(); }
+/* Routine edits push directly (one lightweight upload, no re-download/merge) and are
+   debounced so rapid edits batch into a single PUT — this avoids the memory spike that
+   crashed low-memory devices on every save. Teammates' changes are merged in by the
+   periodic background sync and by the manual Sync button. */
+let _saveTimer=null;
+function scheduleSave(){ if(!ONLINE) return; clearTimeout(_saveTimer); setSync('syncing','Saving…'); _saveTimer=setTimeout(function(){ saveToOneDriveDirect().catch(function(){}); }, 1200); }
 
 /* ─────────── MICROSOFT AUTH ─────────── */
 function initMsal(){
@@ -894,6 +900,7 @@ function enterApp(){
   document.getElementById('settingsBtn').style.display = CURRENT_ROLE==='admin'?'flex':'none';
   applyBranding(); refreshNav();
   startPolling();
+  if(CURRENT_ROLE==='admin' && inlineBytes()>4*1048576){ setTimeout(function(){ toast('Database is large ('+fmtBytes(inlineBytes())+') — open ⚙ Settings → Storage and click “Offload” to prevent slow/crashing saves','err'); }, 1500); }
   go('dashboard');
 }
 function refreshNav(){
