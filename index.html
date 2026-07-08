@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v3.0</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v3.1</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v3.0</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v3.1</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v3.0</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v3.1</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -293,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.0
-   Build: v3.0 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.1
+   Build: v3.1 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -358,7 +358,18 @@ function defaultAcl(){
   users.forEach(u=>{ perms[u.name]={}; SECTIONS.forEach(([k])=>{ perms[u.name][k]= u.role==='admin'?'edit' : (CONTRIB_MODULES.includes(k)&&CONTRIB_USERS.includes(u.name))?'edit':'view'; }); });
   return {users, perms};
 }
-function ensureAcl(){ if(!state.acl||!Array.isArray(state.acl.users)||!state.acl.users.length){ state.acl=defaultAcl(); if(!state.aclTs) state.aclTs=Date.now(); } if(!state.acl.perms) state.acl.perms={}; }
+function ensureAcl(){
+  if(!state.acl||!Array.isArray(state.acl.users)||!state.acl.users.length){ state.acl=defaultAcl(); }
+  if(!state.acl.perms) state.acl.perms={};
+  // A default (un-edited) roster must NOT carry a fresh timestamp, or it could
+  // out-rank a real promotion made elsewhere and cause the change to be ignored.
+  if(isDefaultAcl()) state.aclTs=0;
+}
+function isDefaultAcl(){
+  const d=defaultAcl(); if(!state.acl||!state.acl.users) return true;
+  if(state.acl.users.length!==d.users.length) return false;
+  return d.users.every(du=>{ const u=state.acl.users.find(x=>x.name===du.name); return u && u.role===du.role; });
+}
 function aclUser(email){ const a=state.acl; if(a&&a.users){ return a.users.find(u=>(u.email||'').toLowerCase()===(email||'').toLowerCase().trim()); } return null; }
 function resolveUser(email){
   ensureAcl();
@@ -1399,7 +1410,7 @@ function toggleRole(name){ if(CURRENT_ROLE!=='admin') return; const u=state.acl.
     u.role='member'; state.acl.perms[name]={}; SECTIONS.forEach(([k])=>state.acl.perms[name][k]='view');
   } else {
     if(!confirm('Make '+name+' an Admin?\nAdmins have full access to every section and can manage access.')) return;
-    u.role='admin';
+    u.role='admin'; state.acl.perms[name]={}; SECTIONS.forEach(([k])=>state.acl.perms[name][k]='edit');
   }
   state.aclTs=Date.now(); persist(); toast(name+' is now '+(u.role==='admin'?'an Admin':'a Member'),'ok');
   if(name===CURRENT_USER){ CURRENT_ROLE=u.role; enterApp(); }
@@ -1416,7 +1427,9 @@ function editAccess(name){ if(CURRENT_ROLE!=='admin')return; const u=state.acl.u
       ${SECTIONS.map(s=>seg(s[0])).join('')}
     </div>`,
   ()=>{ const f=getForm(); u.role=f.role==='admin'?'admin':'member';
-    if(u.role!=='admin'){ state.acl.perms[name]=state.acl.perms[name]||{}; SECTIONS.forEach(([k])=>{ state.acl.perms[name][k]=f['sec_'+k]||'view'; }); }
+    state.acl.perms[name]=state.acl.perms[name]||{};
+    if(u.role==='admin'){ SECTIONS.forEach(([k])=>{ state.acl.perms[name][k]='edit'; }); }
+    else { SECTIONS.forEach(([k])=>{ state.acl.perms[name][k]=f['sec_'+k]||'view'; }); }
     // never allow zero admins
     if(!state.acl.users.some(x=>x.role==='admin')){ u.role='admin'; toast('At least one admin is required','err'); }
     state.aclTs=Date.now(); persist(); closeModal(); toast('Access updated','ok'); if(name===CURRENT_USER){ CURRENT_ROLE=u.role; enterApp(); } });
