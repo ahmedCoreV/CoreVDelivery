@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v3.4</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v3.6</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -228,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v3.4</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v3.6</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -251,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v3.4</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v3.6</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -294,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.4
-   Build: v3.4 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.6
+   Build: v3.6 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -600,10 +599,11 @@ function purgeAttachments(){
   (state.documents||[]).forEach(d=>{ if(d.storage!=='onedrive' && d.data){ delete d.data; d._stripped=true; d._ts=Date.now(); n++; } });
   touch(); saveLocal(); renderActive(); closeModal(); saveToOneDriveDirect(); toast('Stripped '+n+' embedded file(s). DB now '+fmtBytes(inlineBytes()),'ok');
 }
-function uploadSignature(){ pickImage(500,'image/png',0.95, du=>{ state.meta=state.meta||{}; state.meta.signature=du; persist(); openSettings(); toast('Signature saved','ok'); }); }
-function removeSignature(){ state.meta=state.meta||{}; state.meta.signature=null; persist(); openSettings(); toast('Signature removed'); }
-function uploadStamp(){ pickImage(500,'image/png',0.95, du=>{ state.meta=state.meta||{}; state.meta.stamp=du; persist(); openSettings(); toast('Stamp saved','ok'); }); }
-function removeStamp(){ state.meta=state.meta||{}; state.meta.stamp=null; persist(); openSettings(); toast('Stamp removed'); }
+function sigStampRefresh(){ if(isModalOpen()) openSettings(); else if(activeView==='certificates') renderActive(); }
+function uploadSignature(){ pickImage(500,'image/png',0.95, du=>{ state.meta=state.meta||{}; state.meta.signature=du; persist(); sigStampRefresh(); toast('Signature saved — auto-applied to certificates','ok'); }); }
+function removeSignature(){ state.meta=state.meta||{}; state.meta.signature=null; persist(); sigStampRefresh(); toast('Signature removed'); }
+function uploadStamp(){ pickImage(500,'image/png',0.95, du=>{ state.meta=state.meta||{}; state.meta.stamp=du; persist(); sigStampRefresh(); toast('Stamp saved — auto-applied to certificates','ok'); }); }
+function removeStamp(){ state.meta=state.meta||{}; state.meta.stamp=null; persist(); sigStampRefresh(); toast('Stamp removed'); }
 function uploadLogo(){ startLogoCrop(); }
 function removeLogo(){ state.meta=state.meta||{}; state.meta.logo=null; persist(); applyBranding(); openSettings(); toast('Logo removed'); }
 
@@ -1579,6 +1579,21 @@ ${certType==='Training Qualification Certificate' ? '' : `
         ${canEditModule('documents')?`<button class="btn" onclick="saveCertToDocs()">💾 Save to Important Documents</button>`:''}
       </div>
       <div class="hint" style="margin-top:8px">“Generate” opens a print-ready document — use your browser's <b>Save as PDF</b>. Saving files a copy in Important Documents (admins).</div>
+      ${CURRENT_ROLE==='admin'?`
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+        <div style="font-weight:700;font-size:13px">✍️ Signature &amp; stamp <span class="muted" style="font-weight:500">— applied automatically to every generated certificate</span></div>
+        <div style="display:flex;gap:22px;flex-wrap:wrap;margin-top:10px">
+          <div style="text-align:center">
+            <div style="width:150px;height:70px;border:1px dashed var(--border);border-radius:10px;background:#f8fafc ${(state.meta&&state.meta.signature)?`url('${state.meta.signature}') center/contain no-repeat`:''};display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12px">${(state.meta&&state.meta.signature)?'':'No signature'}</div>
+            <div style="display:flex;gap:6px;justify-content:center;margin-top:8px"><button class="btn" onclick="uploadSignature()">⬆ Signature</button>${(state.meta&&state.meta.signature)?`<button class="btn danger" onclick="removeSignature()">✕</button>`:''}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="width:90px;height:90px;border:1px dashed var(--border);border-radius:10px;background:#f8fafc ${(state.meta&&state.meta.stamp)?`url('${state.meta.stamp}') center/contain no-repeat`:''};display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12px">${(state.meta&&state.meta.stamp)?'':'No stamp'}</div>
+            <div style="display:flex;gap:6px;justify-content:center;margin-top:8px"><button class="btn" onclick="uploadStamp()">⬆ Stamp</button>${(state.meta&&state.meta.stamp)?`<button class="btn danger" onclick="removeStamp()">✕</button>`:''}</div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:8px">PNG with a transparent background works best. The signature prints on the signature line and the stamp on the side of the certificate. Synced to the whole team.</div>
+      </div>`:''}
     </div>
   </div>`);
 }
@@ -1682,7 +1697,7 @@ function buildTrainingCert(g){
   const sealSvg='<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="width:23mm;height:23mm"><circle cx="60" cy="60" r="57" fill="none" stroke="#09193A" stroke-width="2"/><circle cx="60" cy="60" r="50" fill="none" stroke="#5294FF" stroke-width="1.1"/><circle cx="60" cy="60" r="35" fill="#09193A"/><path d="M45 47 L58 60 L45 73 M54 47 L67 60 L54 73" fill="none" stroke="#82D3FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path id="aT" d="M60 60 m-44,0 a44,44 0 0,1 88,0" fill="none"/><path id="aB" d="M60 60 m44,0 a44,44 0 0,1 -88,0" fill="none"/><text font-family="Inter,sans-serif" font-size="8.4" font-weight="700" letter-spacing="2.3" fill="#09193A"><textPath href="#aT" startOffset="50%" text-anchor="middle">OXEFIT \u00b7 CERTIFIED</textPath></text><text font-family="Inter,sans-serif" font-size="8.4" font-weight="700" letter-spacing="2.3" fill="#09193A"><textPath href="#aB" startOffset="50%" text-anchor="middle">PRODUCT \u00b7 SPECIALIST</textPath></text></svg>';
   const sideMark = stamp ? '<img src="'+stamp+'" style="width:26mm;height:26mm;object-fit:contain">' : sealSvg;
   const sigImg = sig ? '<img src="'+sig+'" style="height:11mm">' : '';
-  const css="@page{size:A4 landscape;margin:0}*{box-sizing:border-box}body{margin:0;font-family:'Inter',Arial,sans-serif;color:#09193A}.sheet{width:297mm;height:210mm;background:#F5F6F8;position:relative;overflow:hidden}.frame{position:absolute;inset:8mm;border:1.5px solid #09193A}.frame::after{content:'';position:absolute;inset:2.2mm;border:.5px solid #5294FF}.corner{position:absolute;width:8mm;height:8mm;border:0 solid #5294FF}.tl{top:8mm;left:8mm;border-top-width:2.4px;border-left-width:2.4px}.tr{top:8mm;right:8mm;border-top-width:2.4px;border-right-width:2.4px}.bl{bottom:8mm;left:8mm;border-bottom-width:2.4px;border-left-width:2.4px}.br{bottom:8mm;right:8mm;border-bottom-width:2.4px;border-right-width:2.4px}.band{position:absolute;left:11mm;right:11mm;height:9px;overflow:hidden;opacity:.4}.band.top{top:11.6mm}.band.bot{bottom:11.6mm;transform:scaleX(-1)}.band svg{width:100%;height:9px;display:block}.inner{position:absolute;top:13.5mm;left:18mm;right:18mm;bottom:13.5mm;display:flex;flex-direction:column}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.logo{height:13mm;width:auto;display:block}.issuer{text-align:right;font-size:8.6px;line-height:1.55;color:#6B7688;max-width:64mm;padding-top:1mm}.issuer b{color:#33445E}.eyebrow{margin-top:5.5mm;text-align:center;font-size:11px;letter-spacing:.4em;color:#1D0FD3;font-weight:700}.conf{margin-top:3px;text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:34px;color:#09193A;line-height:1.02}.subconf{text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:15px;color:#33445E}.presented{text-align:center;font-size:9.5px;letter-spacing:.34em;color:#6B7688;margin-top:5mm;font-weight:600}.name{text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:40px;color:#09193A;line-height:1;margin-top:2px}.name-rule{width:104mm;height:2.2px;background:linear-gradient(90deg,transparent,#5294FF,#1D0FD3,#5294FF,transparent);margin:6px auto 0;border-radius:2px}.statement{max-width:212mm;margin:4.5mm auto 0;text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:15px;line-height:1.4;color:#33445E}.statement b{color:#09193A;font-weight:600}.systems{display:flex;gap:12px;justify-content:center;margin-top:4.5mm}.sys{border:1.3px solid #09193A;border-radius:3px;padding:6px 20px;font-family:'Cormorant Garamond',Georgia,serif;font-size:18px;font-weight:600;color:#09193A}.sys span{color:#5294FF;font-family:'Inter',sans-serif;font-weight:800;font-size:14px}.cols{display:grid;grid-template-columns:1fr 1fr;gap:14mm;margin-top:4.5mm;padding:0 2mm}.col h3{font-size:9px;letter-spacing:.2em;color:#1D0FD3;font-weight:800;margin:0 0 5px;padding-bottom:4px;border-bottom:1.3px solid #D6DBE2}.col ul{list-style:none;margin:0;padding:0}.col li{position:relative;padding-left:15px;font-size:10px;line-height:1.33;color:#33445E;margin:3px 0}.col li::before{content:'\00BB';position:absolute;left:0;top:0;color:#5294FF;font-weight:800}.meta{margin-top:4.5mm;text-align:center;font-size:9.5px;color:#6B7688}.meta b{color:#09193A;font-weight:600}.meta .dot{color:#5294FF;margin:0 7px}.foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:10mm}.sigs{display:flex;gap:14mm;flex:1}.sig{flex:1;text-align:center}.sig .who{height:11mm;display:flex;align-items:flex-end;justify-content:center}.sig .line{border-top:1.2px solid #09193A;padding-top:4px}.sig .lab{font-size:8.4px;letter-spacing:.13em;color:#6B7688;font-weight:700}.sig .sub{font-size:7.6px;color:#6B7688;margin-top:1px}.sidemark{flex:none;display:flex;align-items:center;justify-content:center}";
+  const css="@page{size:A4 landscape;margin:0}*{box-sizing:border-box}body{margin:0;font-family:'Inter',Arial,sans-serif;color:#09193A}.sheet{width:297mm;height:210mm;background:#F5F6F8;position:relative;overflow:hidden}.frame{position:absolute;inset:8mm;border:1.5px solid #09193A}.frame::after{content:'';position:absolute;inset:2.2mm;border:.5px solid #5294FF}.corner{position:absolute;width:8mm;height:8mm;border:0 solid #5294FF}.tl{top:8mm;left:8mm;border-top-width:2.4px;border-left-width:2.4px}.tr{top:8mm;right:8mm;border-top-width:2.4px;border-right-width:2.4px}.bl{bottom:8mm;left:8mm;border-bottom-width:2.4px;border-left-width:2.4px}.br{bottom:8mm;right:8mm;border-bottom-width:2.4px;border-right-width:2.4px}.band{position:absolute;left:11mm;right:11mm;height:9px;overflow:hidden;opacity:.4}.band.top{top:11.6mm}.band.bot{bottom:11.6mm;transform:scaleX(-1)}.band svg{width:100%;height:9px;display:block}.inner{position:absolute;top:17mm;left:18mm;right:18mm;bottom:12.5mm;display:flex;flex-direction:column}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.logo{height:13mm;width:auto;display:block}.issuer{text-align:right;font-size:8.6px;line-height:1.55;color:#6B7688;max-width:64mm;padding-top:1mm}.issuer b{color:#33445E}.eyebrow{margin-top:5.5mm;text-align:center;font-size:11px;letter-spacing:.4em;color:#1D0FD3;font-weight:700}.conf{margin-top:3px;text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:34px;color:#09193A;line-height:1.02}.subconf{text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:15px;color:#33445E}.presented{text-align:center;font-size:9.5px;letter-spacing:.34em;color:#6B7688;margin-top:5mm;font-weight:600}.name{text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:40px;color:#09193A;line-height:1;margin-top:2px}.name-rule{width:104mm;height:2.2px;background:linear-gradient(90deg,transparent,#5294FF,#1D0FD3,#5294FF,transparent);margin:6px auto 0;border-radius:2px}.statement{max-width:212mm;margin:4.5mm auto 0;text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:15px;line-height:1.4;color:#33445E}.statement b{color:#09193A;font-weight:600}.systems{display:flex;gap:12px;justify-content:center;margin-top:4.5mm}.sys{border:1.3px solid #09193A;border-radius:3px;padding:6px 20px;font-family:'Cormorant Garamond',Georgia,serif;font-size:18px;font-weight:600;color:#09193A}.sys span{color:#5294FF;font-family:'Inter',sans-serif;font-weight:800;font-size:14px}.cols{display:grid;grid-template-columns:1fr 1fr;gap:14mm;margin-top:4.5mm;padding:0 2mm}.col h3{font-size:9px;letter-spacing:.2em;color:#1D0FD3;font-weight:800;margin:0 0 5px;padding-bottom:4px;border-bottom:1.3px solid #D6DBE2}.col ul{list-style:none;margin:0;padding:0}.col li{position:relative;padding-left:15px;font-size:10px;line-height:1.33;color:#33445E;margin:3px 0}.col li::before{content:'»';position:absolute;left:0;top:0;color:#5294FF;font-weight:800}.meta{margin-top:4.5mm;text-align:center;font-size:9.5px;color:#6B7688}.meta b{color:#09193A;font-weight:600}.meta .dot{color:#5294FF;margin:0 7px}.foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:10mm}.sigs{display:flex;gap:14mm;flex:1}.sig{flex:1;text-align:center}.sig .who{height:11mm;display:flex;align-items:flex-end;justify-content:center}.sig .line{border-top:1.2px solid #09193A;padding-top:4px}.sig .lab{font-size:8.4px;letter-spacing:.13em;color:#6B7688;font-weight:700}.sig .sub{font-size:7.6px;color:#6B7688;margin-top:1px}.sidemark{flex:none;display:flex;align-items:center;justify-content:center;transform:translateY(-9mm)}";
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(g.title||'OxeFit Certificate')+' — '+esc(g.employee||'')+'</title>'
     +'<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,500&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">'
     +'<style>'+css+'</style></head><body><div class="sheet">'
@@ -1701,7 +1716,7 @@ function buildTrainingCert(g){
     +'<div class="cols"><div class="col"><h3>QUALIFIED COMPETENCIES</h3><ul>'+li(COMP)+'</ul></div><div class="col"><h3>KEY OXEFIT CAPABILITIES COVERED</h3><ul>'+li(CAPS)+'</ul></div></div>'
     +'<div class="meta">Certificate No <b>'+esc(g.certNo||'')+'</b><span class="dot">&#187;</span>Date of Issue <b>'+fmtDate(g.issueDate)+'</b><span class="dot">&#187;</span>Valid Until <b>'+fmtDate(validUntil)+'</b></div>'
     +'<div class="foot"><div class="sigs">'
-    +'<div class="sig"><div class="who"></div><div class="line"><div class="lab">AUTHORIZED — OXEFIT, USA</div><div class="sub">Training &amp; Certification Authority</div></div></div>'
+    
     +'<div class="sig"><div class="who">'+sigImg+'</div><div class="line"><div class="lab">AUTHORIZED — CORE VELOCITY</div><div class="sub">Distributor &amp; Training Partner, UAE</div></div></div>'
     +'</div><div class="sidemark">'+sideMark+'</div></div>'
     +'</div><div class="band bot">'+band+'</div></div></body></html>';
