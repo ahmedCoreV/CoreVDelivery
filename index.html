@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v3.9</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v4.0</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v3.9</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v4.0</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v3.9</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v4.0</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -293,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.9
-   Build: v3.9 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.0
+   Build: v4.0 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -835,6 +835,7 @@ async function downloadFromOneDrive(){
     _initialSynced=true;
     setSync('connected','Synced');
     backupDaily();
+    if(CURRENT_ROLE==='admin' && inlineBytes()>6*1048576){ setTimeout(function(){ toast('Large database loaded ('+fmtBytes(inlineBytes())+') — open ⚙ Settings → Storage & performance → Offload to shrink it and stop crashes','err'); }, 1200); }
   }catch(e){ console.warn('download',e); if(e&&e.code===403){ showSharedError(); } else { setSync('error','Sync error'); } }
   finally{ _syncBusy=false; }
 }
