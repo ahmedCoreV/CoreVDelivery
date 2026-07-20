@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v4.0</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v4.1</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v4.0</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v4.1</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v4.0</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v4.1</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -293,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.0
-   Build: v4.0 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.1
+   Build: v4.1 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -1971,11 +1971,21 @@ function fileSize(b){ return b>=1048576?((b/1048576).toFixed(1)+' MB'):((b/1024|
 /* Files ≤ INLINE_MAX are embedded in the DB (fast, offline-safe). Larger files are
    uploaded to OneDrive as REAL files and only referenced — this keeps the synced
    database small and avoids the localStorage/stringify crash on big uploads. */
+/* Resize + JPEG-compress an image file to keep the database & OneDrive lean. */
+function compressImage(file, maxDim, quality){ return new Promise(function(res,rej){ try{ const url=URL.createObjectURL(file); const img=new Image(); img.onload=function(){ try{ let w=img.width,h=img.height; if(!w||!h){ URL.revokeObjectURL(url); return rej(new Error('bad image')); } const sc=Math.min(1,maxDim/Math.max(w,h)); w=Math.max(1,Math.round(w*sc)); h=Math.max(1,Math.round(h*sc)); const c=document.createElement('canvas'); c.width=w;c.height=h; const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h); const durl=c.toDataURL('image/jpeg',quality); URL.revokeObjectURL(url); res(durl); }catch(e){ URL.revokeObjectURL(url); rej(e); } }; img.onerror=function(){ URL.revokeObjectURL(url); rej(new Error('load')); }; img.src=url; }catch(e){ rej(e); } }); }
 function pickFile(cb){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,application/pdf,image/*';
-  inp.onchange=e=>{ const f=e.target.files[0]; if(!f) return; const base={name:f.name,mime:f.type||'application/octet-stream',size:f.size,file:f};
-    if(f.size<=INLINE_MAX){ const rd=new FileReader(); rd.onload=ev=>cb({...base,storage:'inline',data:ev.target.result}); rd.onerror=()=>toast('Could not read file','err'); rd.readAsDataURL(f); }
-    else if(!msalAccount){ toast('Large files need Microsoft sign-in (OneDrive)','err'); }
-    else { cb({...base,storage:'onedrive'}); }
+  inp.onchange=e=>{ const f=e.target.files[0]; if(!f) return;
+    const isImg=(f.type&&f.type.indexOf('image/')===0)||/\.(jpe?g|png|gif|webp|bmp|heic)$/i.test(f.name||'');
+    const finish=base=>{ if(base.size<=INLINE_MAX){ if(base.data){ cb({...base,storage:'inline'}); } else { const rd=new FileReader(); rd.onload=ev=>cb({...base,storage:'inline',data:ev.target.result}); rd.onerror=()=>toast('Could not read file','err'); rd.readAsDataURL(base.file); } } else if(!msalAccount){ toast('Large file needs Microsoft sign-in (OneDrive)','err'); } else { cb({...base,storage:'onedrive'}); } };
+    if(isImg){
+      const before=f.size;
+      compressImage(f,1800,0.72).then(function(durl){ const blob=dataURLtoBlob(durl); const size=blob?blob.size:Math.round(durl.length*0.73); const nm=(f.name||'image').replace(/\.[^.]+$/,'')+'.jpg';
+        if(before && size<before) toast('Image compressed '+fileSize(before)+' → '+fileSize(size),'ok');
+        finish({name:nm,mime:'image/jpeg',size:size,file:blob,data:size<=INLINE_MAX?durl:null}); })
+      .catch(function(){ finish({name:f.name,mime:f.type||'application/octet-stream',size:f.size,file:f}); });
+      return;
+    }
+    finish({name:f.name,mime:f.type||'application/octet-stream',size:f.size,file:f});
   }; inp.click(); }
 /* Upload a large file to the shared OneDrive via a resumable upload session (chunked). */
 async function graphUploadAttachment(fileObj){
