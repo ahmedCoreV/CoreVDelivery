@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v3.7</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v3.8</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -228,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v3.7</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v3.8</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -251,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v3.7</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v3.8</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -294,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.7
-   Build: v3.7 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.8
+   Build: v3.8 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -680,7 +679,8 @@ async function persist(){ touch(); saveLocal(); renderActive(); scheduleSave(); 
    crashed low-memory devices on every save. Teammates' changes are merged in by the
    periodic background sync and by the manual Sync button. */
 let _saveTimer=null;
-function scheduleSave(){ if(!ONLINE) return; clearTimeout(_saveTimer); setSync('syncing','Saving…'); _saveTimer=setTimeout(function(){ saveToOneDriveDirect().catch(function(){}); }, 1200); }
+let _initialSynced=false;
+function scheduleSave(){ if(!ONLINE) return; if(!_initialSynced){ return; } /* never push before we've pulled real data once */ clearTimeout(_saveTimer); setSync('syncing','Saving…'); _saveTimer=setTimeout(function(){ saveToOneDrive().catch(function(){}); }, 1200); }
 
 /* ─────────── MICROSOFT AUTH ─────────── */
 function initMsal(){
@@ -814,11 +814,15 @@ async function downloadFromOneDrive(){
   try{
     const tok=await getToken();
     const r=await fetchRemote(tok);
-    if(r.status===404){ await saveToOneDrive(); setSync('connected','Synced'); return; }
-    if(r.data && r.data.deliveries){ mergeState(r.data); saveLocal(); applyBranding(); refreshRole();
+    if(r.status===404){ _initialSynced=true; await saveToOneDrive(); setSync('connected','Synced'); return; }
+    if(r.data && r.data.deliveries){ mergeState(r.data);
+      const remoteReal=COLLECTIONS.some(function(k){ return (r.data[k]||[]).some(function(x){ return x && !x._seed; }); });
+      if(remoteReal){ COLLECTIONS.forEach(function(k){ state[k]=(state[k]||[]).filter(function(x){ return !x._seed; }); }); }
+      saveLocal(); applyBranding(); refreshRole();
       const key=((state.meta&&state.meta.updated)||'')+'|'+(state.aclTs||0);
       if(key!==_lastSyncKey){ _lastSyncKey=key; if(!isModalOpen()) renderActive(); }
       updateTicketBadge(); }
+    _initialSynced=true;
     setSync('connected','Synced');
   }catch(e){ console.warn('download',e); if(e&&e.code===403){ showSharedError(); } else { setSync('error','Sync error'); } }
   finally{ _syncBusy=false; }
@@ -882,7 +886,7 @@ function setSync(cls,txt){ const d=document.getElementById('syncDot'), t=documen
    BOOT + LOGIN
 ============================================================ */
 function boot(){
-  if(!loadLocal()) seedData();
+  if(!loadLocal()){ seedData(); COLLECTIONS.forEach(function(k){ (state[k]||[]).forEach(function(r){ if(r){ r._seed=true; r._ts=0; } }); }); }
   ensureAcl();
   if(!ONEDRIVE_CONFIG.clientId){
     const b=document.getElementById('offlineBanner');
