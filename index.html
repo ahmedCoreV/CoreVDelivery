@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v4.2</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v4.3</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v4.2</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v4.3</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v4.2</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v4.3</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -293,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.2
-   Build: v4.2 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.3
+   Build: v4.3 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -690,7 +690,19 @@ async function persist(){ touch(); saveLocal(); renderActive(); scheduleSave(); 
    periodic background sync and by the manual Sync button. */
 let _saveTimer=null;
 let _initialSynced=false;
-function scheduleSave(){ if(!ONLINE) return; if(!_initialSynced){ return; } /* must have pulled real data once before pushing */ clearTimeout(_saveTimer); setSync('syncing','Saving…'); _saveTimer=setTimeout(function(){ (inlineBytes()>4*1048576 ? saveToOneDriveDirect() : saveToOneDrive()).catch(function(){}); }, 1200); }
+function scheduleSave(){ if(!ONLINE) return; clearTimeout(_saveTimer); setSync('syncing','Saving…'); _saveTimer=setTimeout(runSave, 1000); }
+async function runSave(){
+  try{
+    if(inlineBytes()>4*1048576){
+      // large DB: lightweight direct write (no heavy re-download). Only skip if this device
+      // is a pristine seed copy that hasn't pulled real data yet (avoid clobbering remote).
+      if(!_initialSynced && !hasRealData()){ setSync('connected','Synced'); return; }
+      const ok=await saveToOneDriveDirect(); if(ok===false){ setSync('error','Save failed — retry'); }
+    } else {
+      await saveToOneDrive();   // small DB: safe merge-then-write
+    }
+  }catch(e){ console.warn('save failed',e); setSync('error','Save failed — retry'); }
+}
 
 /* ─────────── MICROSOFT AUTH ─────────── */
 function initMsal(){
